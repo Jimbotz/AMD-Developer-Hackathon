@@ -1,0 +1,128 @@
+/* ADR Security Validator - Obsidian Plugin Styles */
+
+.adr-validator-modal {
+    max-width: 800px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.adr-modal-title {
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.adr-status-container {
+    margin-bottom: 20px;
+    padding: 12px;
+    background: var(--background-secondary);
+    border-radius: 8px;
+}
+
+.adr-status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 4px;
+    color: white;
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+}
+
+.adr-status-message {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+.adr-section-title {
+    margin-top: 20px;
+    margin-bottom: 12px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.adr-section-warning {
+    color: #eab308;
+}
+
+.adr-section-danger {
+    color: #ef4444;
+}
+
+.adr-section-info {
+    color: #3b82f6;
+}
+
+.adr-contradiction,
+.adr-risk {
+    padding: 12px;
+    margin-bottom: 12px;
+    background: var(--background-secondary);
+    border-radius: 6px;
+    border-left: 3px solid var(--text-muted);
+}
+
+.adr-contradiction strong,
+.adr-risk strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
+.adr-contradiction p,
+.adr-risk p {
+    margin: 4px 0;
+    color: var(--text-muted);
+}
+
+.adr-contradiction small {
+    display: block;
+    margin-top: 4px;
+    color: var(--text-faint);
+    font-size: 12px;
+}
+
+.adr-code-secure {
+    background: #0d1117;
+    color: #c9d1d9;
+    padding: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 12px;
+    margin-top: 8px;
+}
+
+.adr-code-secure code {
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.adr-recommendations {
+    padding-left: 20px;
+}
+
+.adr-recommendations li {
+    margin-bottom: 8px;
+    color: var(--text-muted);
+}
+
+.adr-related li {
+    margin-bottom: 6px;
+}
+
+.adr-tech-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.adr-tech-tag {
+    padding: 4px 10px;
+    background: var(--background-secondary);
+    border-radius: 4px;
+    font-size: 12px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.adr-settings-desc {
+    color: var(--text-muted);
+    margin-bottom: 20px;
+}

@@ -1,0 +1,12 @@
+{
+  "id": "adr-security-validator",
+  "name": "ADR Security Validator",
+  "version": "1.0.0",
+  "minAppVersion": "0.15.0",
+  "description": "Validates Architecture Decision Records in real-time with security analysis using Qwen + Qdrant",
+  "author": "AMD ROCm Hackathon Team",
+  "authorUrl": "https://github.com/amd-hackathon",
+  "fundingUrl": "",
+  "isDesktopOnly": false,
+  "requiresApiVersion": "1.0.0"
+}
