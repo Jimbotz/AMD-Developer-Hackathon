@@ -1,0 +1,16 @@
+# See the OWNERS docs at https://go.k8s.io/owners
+
+approvers:
+  - jberkus
+  - committee-steering
+  - sig-contributor-experience-leads
+  - parispittman
+  - fsmunoz
+  - salaxander
+emeritus_approvers:
+  - jdumars
+  - nikhita
+  - mrbobbytables
+labels:
+  - area/elections
+  - sig/contributor-experience

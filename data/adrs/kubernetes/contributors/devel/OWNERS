@@ -1,0 +1,19 @@
+# See the OWNERS docs at https://go.k8s.io/owners
+
+reviewers:
+  - cblecker
+  - idvoretskyi
+  - spiffxp
+  - guineveresaenger
+approvers:
+  - cblecker
+  - idvoretskyi
+  - lavalamp
+  - spiffxp
+  - thockin
+  - sig-architecture-approvers
+emeritus_approvers:
+- calebamiles
+- Phillels
+labels:
+  - area/developer-guide

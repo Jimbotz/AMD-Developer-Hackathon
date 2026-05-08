@@ -1,0 +1,357 @@
+# This file contains a top-level list of Slack User Groups.
+# SIG-specific User Groups may be defined within a SIG's subdirectory
+#
+# e.g., @release-managers is defined in sig-release/usergroups.yaml
+
+usergroups:
+  - name: apac-coordinators
+    long_name: APAC Coordinators
+    description: APAC Coordinator group.
+    channels:
+      - sig-contribex
+    members:
+      - alisondy
+      - aravindputrevu
+      - idealhack
+      - nikhita
+      - palnabarun
+      - pensu91
+      - sammy
+      - "Sujay Pillai"
+      - TaoBeier
+
+  - name: contribex-leads
+    long_name: SIG Contributor Experience Leads
+    description: SIG Contributor Experience Leads group.
+    channels:
+      - sig-contribex
+    members:
+      - kaslin
+      - MadhavJivrajani
+      - mfahlandt
+      - palnabarun
+      - Priyankasaggu11929
+
+  - name: contributor-comms
+    long_name: Contributor Communications
+    description: Contributor Communications group.
+    channels:
+      - sig-contribex
+      - sig-contribex-comms
+    members:
+      - chrisshort
+      - fsmunoz
+      - fykaa
+      - hii-arpit
+      - kaslin
+      - mfahlandt
+      - nataliefisher
+      - nitishfy
+      - sandeepkanabar
+      - sandipanpanda
+      - sreeram-venkitesh
+
+  - name: k8s-infra-leads
+    long_name: SIG K8S Infra leads
+    description: |-
+      Leads of the Infrastructure SIG. Ping for a community-owned infrastructure problem.
+    channels:
+      - k8s-infra-alerts
+      - sig-k8s-infra
+    members:
+      - ameukam
+      - genpage
+      - hakman
+      - upodroid
+      - xmudrii
+
+  # Should match the membership of the following teams at all times:
+  # - https://git.k8s.io/security/#product-security-committee-psc
+  #
+  # Ensure any changes are also reflected in the Security Release Team
+  # usergroup (within the SIG Release config directory).
+  - name: product-security-committee
+    long_name: Product Security Committee
+    description: |-
+      The Product Security Committee (PSC) is responsible for triaging and handling the security issues for Kubernetes.
+    channels:
+      - release-management
+      - sig-release
+    members:
+      - puerco
+      - cjcullen
+      - enj
+      - joelsmith
+      - micahhausler
+      - natherz97
+      - stlaz
+      - tabbysable
+      - vinayakankugoyal
+      - Vyom-Yadav
+
+  - name: velero-maintainers
+    long_name: Velero Maintainers
+    description: Velero Maintainers group.
+    channels:
+      - velero-dev
+      - velero-users
+    members:
+      - Dave Smith-Uchida
+      - jiangd
+      - yinw
+      - ming-qiu
+      - shubham-pampattiwar
+      - xun-jiang
+      - scott-seago
+
+  - name: youtube-admins
+    long_name: YouTube Admins
+    description: YouTube Admin group. Ping for a YouTube-specific issue.
+    channels:
+      - sig-contribex
+    members:
+      - chrisshort
+      - pnbrown
+      - CIPHERTron
+      - chadmcrowell
+      - hii-arpit
+      - kaslin
+
+  - name: zoom-admins
+    long_name: Zoom Admins
+    description: Zoom Admin group. Ping for a Zoom-specific issue.
+    channels:
+      - sig-contribex
+    members:
+      - chadmcrowell
+      - chrisshort
+      - palnabarun
+      - paris
+      - pnbrown
+
+  - name: k8satl-hosts
+    long_name: Kubernetes Atlanta Meetup Hosts
+    description: Kubernetes Atlanta Meetup Hosts group
+    channels:
+      - meetup-atlanta
+    members:
+      - phenixblue
+      - AlexB138
+
+  - name: skaffold-devs
+    long_name: Skaffold Development Team
+    description: Active developers on #skaffold
+    channels:
+      - skaffold
+    members:
+      - briandealwis
+      - gsquared94
+      - ilya-zuyev
+      - IsaacPD
+      - MarlonGamez
+      - nkubala
+      - tejal29
+      - tstromberg
+
+  - name: operator-sdk-maintainers
+    long_name: Operator SDK maintainers
+    description: Active developers of the Operator SDK
+    channels:
+      - kubernetes-operators
+      - operator-sdk-dev
+      - kubebuilder
+    members:
+      - estroz
+      - joelanford
+      - jmccormick2001
+      - jmrodri
+      - asmacdo
+      - marc-obrien
+      - theishshah
+      - camilamacedo86
+      - fabianvf
+      - varshaprasad96
+      - rashmigottipati
+      - jberkhahn
+
+  - name: odo-devs
+    long_name: Odo Development Team
+    description: Active developers of odo on #odo
+    channels:
+      - odo
+    members:
+      - kadel
+      - feloy
+      - anandrkskd
+      - rnapoles-rh
+      - rm3l
+      - valaparthvi
+
+  - name: pinniped-dev
+    long_name: Pinniped Development Team
+    description: Active developers of Pinniped @ pinniped.dev
+    channels:
+      - pinniped
+    members:
+      - anjaltelang
+      - benjaminapetersen
+      - cfryanr
+      - jonasrosland
+      - pnbrown
+
+  - name: podman-desktop-devs
+    long_name: Podman Desktop Dev Team
+    description: Active developers of Podman Desktop on #podman-desktop
+    channels:
+      - podman-desktop
+    members:
+      - cdrage
+      - benoitf
+      - vzhukovs
+
+  - name: steering-members
+    long_name: Kubernetes Steering Committee
+    description: Members of the Kubernetes Steering Committee
+    channels:
+      - steering-committee
+    members:
+      - aojea
+      - bentheelder
+      - katcosgrove
+      - pacoxu
+      - ritazh
+      - saschagrunert
+      - soltysh
+
+  - name: grafana-operator-maintainers
+    long_name: Grafana Operator Maintainers
+    description: Support group for Grafana Operator.
+    channels:
+      - grafana-operator
+    members:
+      - david-martin
+      - grdryn
+      - hubertstefanski
+      - pb82
+      - r-lawton
+      - robshelly
+      - vladimirmukhin
+      - wurbanski
+
+  - name: druid-operator-maintainers
+    long_name: Druid Operator Maintainers
+    description: Dev and Support group for Druid Operator.
+    channels:
+      - druid-operator
+    members:
+      - adheipsingh
+
+  - name: devfile-devs
+    long_name: Devfile Development Team
+    description: Active developers of Devfile on #devfile
+    channels:
+      - devfile
+    members:
+      - elsony
+      - jasperchui
+      - Jdubrick
+      - johnmcollier
+      - kim-tsao
+      - maysunfaisal
+      - michael-valdron
+      - rtaniwa
+      - thepetk
+      - yangcao77
+
+  - name: cluster-api-release-team
+    long_name: Cluster API Release Team
+    description: Members of the Cluster API Release Team
+    members:
+      - adilGhaffarDev
+      - alimaazamat
+      - chandankumar4
+      - chiukapoor
+      - cprivitere
+      - hackeramitkumar
+      - mboersma
+      - mbrow137
+      - natitomattis
+      - neoaggelos
+      - RansherSingh
+      - shecodesmagic
+      - swastik959
+      - tsuzu
+
+  - name: kcp-devs
+    long_name: kcp Development Team
+    description: Active developers of kcp on #kcp-dev
+    members:
+      - clubanderson
+      - embik
+      - mjudeikis
+      - scheeles
+      - sttts
+      - xrstf
+
+  - name: github-admins
+    long_name: Kubernetes GitHub Admins
+    description: Administrators of the Kubernetes GitHub organisations
+    members:
+      - cblecker
+      - jasonbraganza
+      - MadhavJivrajani
+      - mrbobbytables
+      - nikhita
+      - palnabarun
+      - Priyankasaggu11929
+
+  - name: kubestellar-devs
+    long_name: KubeStellar Development Team
+    description: "Active developers of KubeStellar on #kubestellar-dev"
+    members:
+      - clubanderson
+      - mspreitz
+      - ezra
+      - paolo
+
+  - name: cert-manager-maintainers
+    long_name: cert-manager Maintainers
+    description: The maintainers of the cert-manager project.
+    channels:
+      - cert-manager-dev
+      - cert-manager
+    # To get that list, run the following:
+    #  curl https://raw.githubusercontent.com/cert-manager/community/main/maintainers.csv
+    # Note that you will then need to find your Slack User ID (look up in Stackoverflow)
+    # and copy it to the users.yaml file in this repository.
+    members:
+      - munnerz
+      - joshvanl
+      - wallrj
+      - jakexks
+      - maelvls
+      - sgtcodfish
+      - inteon
+      - ThatsMrTalbot
+      - erikgb
+      - hjoshi123
+
+  - name: gophercloud-maintainers
+    long_name: Gophercloud Maintainers
+    description: Gophercloud Maintainers group.
+    channels:
+      - gophercloud
+    members:
+      - EmilienM
+      - kayrus
+      - mandre
+      - pierreprinetti
+
+  - name: kubetail-maintainers
+    long_name: kubetail Maintainers
+    description: kubetail Maintainers group of kubetail.com
+    channels:
+      - kubetail
+    members:
+      - amorey
+      - rxinui

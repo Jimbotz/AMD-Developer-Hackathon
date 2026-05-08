@@ -1,0 +1,128 @@
+# Created by .ignore support plugin (hsz.mobi)
+### Java template
+# Compiled class file
+*.class
+
+# Log file
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package Files #
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+*.iml
+
+# virtual machine crash logs
+hs_err_pid*
+
+.DS_Store
+target
+__pycache__/
+*.py[cod]
+*$py.class
+
+.vscode
+.idea
+.classpath
+.project
+.settings/
+.secrets.json
+
+k8s/cluster-keys.json
+cluster-keys.json
+commentedroottoken
+root_token
+
+# Terraform
+kubeconfig_wrongsecrets-exercise-cluster
+.terraform
+.terraform
+terraform.tfstate*
+aws/terraform.tfstate.*
+aws/terraform.tfstate.backup
+aws/.terraform.tfstate.lock.info
+
+# Templated
+gcp/k8s/secret-volume.yml
+gcp/k8s/secret-challenge-vault-deployment.yml
+azure/k8s/secret-volume.yml
+azure/k8s/secret-challenge-vault-deployment.yml
+azure/k8s/pod-id.yml
+
+# Challenge 12 ;-)
+.github/scripts/yourkey.txt
+
+# Challenge 16
+.github/scripts/secondkey.txt
+
+# Challenge 17
+.github/scripts/thirdkey.txt
+
+yourkey.txt
+
+# Challenge 36
+src/main/resources/executables/.gdb_history
+src/main/resources/executables/decrypt/decrypt
+
+# Challenge 50
+src/main/resources/executables/wrongsecrets-dotnet
+src/main/resources/executables/wrongsecrets-dotnet*
+
+# Challenge 59
+k8s/challenge53/executables/wrongsecrets-challenge53-c
+k8s/challenge53/executables/wrongsecrets-challenge53-c*
+
+# Challenge 62
+challenge62-key.json
+
+# Node JS
+js/node/
+js/node_modules/
+node_modules
+.npm
+
+# Cypress
+src/test/e2e/cypress/videos
+src/test/e2e/cypress/screenshots
+src/test/e2e/cypress/reports
+src/test/k8s-tests/cypress/videos
+src/test/k8s-tests/cypress/screenshots
+src/test/k8s-tests/cypress/reports
+cypress/downloads
+py_env
+tmp/
+.env
+contributors_file*
+
+##documentation
+scripts/sort_contibutors/.env
+scripts/sort_contibutors/contributors_file.*
+scripts/sort_contibutors/.tools/
+scripts/sort_contibutors/bin/
+
+#optimizations
+.github/scripts/binary_version.txt
+
+# Cha-llen-ge 5-4
+# Se-cret en-cry-pted : h0vRDUS3VDN2gwfd1oftcMtD/YlKE0YfHLTvyk/lrY4=
+# K-E-Y : 6b3b913c09d62238b9b8c0cc78904e7e1f9a99fd0a04ebae50a8a9881d452bbd
+
+# Scanner output files
+*secrets*output*.json
+*trufflehog*output*.json
+*gitleaks*output*.txt
+*gittyleaks*output*.txt
+*whispers*output*.json
+git_secrets_output.txt
+.secrets.baseline.json
+lychee

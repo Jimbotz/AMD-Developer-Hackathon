@@ -1,0 +1,68 @@
+name: Pre-commit check
+
+# Controls when the workflow will run
+on:
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+env:
+  TF_DOCS_VERSION: v0.19.0
+  TFLINT_VERSION: v0.53.0
+permissions:
+  contents: read
+jobs:
+  pre-commit:
+    name: Pre-commit check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout git repository
+        uses: actions/checkout@v5
+      - name: Setup python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Format python code with black
+        uses: psf/black@stable
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: "npm"
+      - uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: "25"
+      - name: Install npm dependencies
+        run: npm install
+      - uses: actions/cache@v4
+        name: Cache plugin dir
+        with:
+          path: ~/.tflint.d/plugins
+          key: ${{ matrix.os }}-tflint-${{ hashFiles('.tflint.hcl') }}
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+      - name: Setup TFLint
+        uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: ${{env.TFLINT_VERSION}}
+      - name: Setup Terraform docs
+        run: |
+          wget https://github.com/terraform-docs/terraform-docs/releases/download/${{env.TF_DOCS_VERSION}}/terraform-docs-${{env.TF_DOCS_VERSION}}-linux-amd64.tar.gz -O terraform_docs.tar.gz
+          tar -zxvf terraform_docs.tar.gz terraform-docs
+          chmod +x terraform-docs
+          mv terraform-docs /usr/local/bin/
+      - name: Setup trivy
+        # Using apt repo to avoid dependency on aquasecurity/trivy git repo (which broke setup-trivy action).
+        # Installs the latest available trivy version; pin by appending =VERSION to the apt-get install line if needed.
+        run: |
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+      - name: Pre-commit checks
+        uses: pre-commit/action@v3.0.1
+      - name: pre-commit-ci-lite
+        uses: pre-commit-ci/lite-action@v1.1.0
+        if: always()

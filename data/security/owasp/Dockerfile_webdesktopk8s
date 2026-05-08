@@ -1,0 +1,34 @@
+FROM linuxserver/webtop:latest
+LABEL NAME="OWASP WrongSecrets Web Desktop" MAINTAINER="Jeroen Willemsen"
+
+RUN \
+  echo "**** install packages ****" && \
+  apk add --no-cache shadow keepassxc kubectl radare2 dotnet9-sdk aws-cli geany git gdb build-base icu-libs icu-data-full ca-certificates libgcc libstdc++ zlib && \
+  echo "**** adding abc user to root for Docker ****" && \
+  usermod -aG root abc && \
+  touch /var/run/docker.sock && \
+  chown abc:abc /var/run/docker.sock && \
+  echo "**** cleanup ****" && \
+  rm -rf /tmp/*
+
+RUN dotnet tool install ilspycmd --version 9.0.0.7889 --tool-path /etc/dotnet/tools
+# Add secret handling for Kubernetes-specific Docker builds
+# Create the /app directory to store the secret
+RUN mkdir -p /app
+
+# Use a separate RUN command for --mount
+RUN --mount=type=secret,id=mysecret \
+    export SECRET_VALUE=$(cat /run/secrets/mysecret) && \
+    echo $SECRET_VALUE >> /app/secret.txt
+
+WORKDIR /config/Desktop
+
+COPY src/main/resources/executables/*linux-mus* /var/tmp/wrongsecrets/
+COPY src/main/resources/executables/decrypt/ /var/tmp/wrongsecrets/decrypt/
+COPY src/main/resources/executables/wrongsecrets-advanced-c-windows.exe /var/tmp/wrongsecrets/
+COPY src/main/resources/executables/secrchallenge.md /var/tmp/wrongsecrets/
+COPY src/main/resources/executables/secrchallenge.json /var/tmp/wrongsecrets/
+COPY src/test/resources/alibabacreds.kdbx /var/tmp/wrongsecrets/
+COPY wrongsecret-desktop-resources/welcome.md /var/tmp/wrongsecrets/
+
+COPY wrongsecret-desktop-resources/startwm.sh /defaults/startwm.sh

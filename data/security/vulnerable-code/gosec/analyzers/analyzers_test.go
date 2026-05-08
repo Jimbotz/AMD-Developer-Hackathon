@@ -1,0 +1,142 @@
+package analyzers_test
+
+import (
+	"fmt"
+	"log"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	"github.com/securego/gosec/v2"
+	"github.com/securego/gosec/v2/analyzers"
+	"github.com/securego/gosec/v2/testutils"
+)
+
+var _ = Describe("gosec analyzers", func() {
+	var (
+		logger    *log.Logger
+		config    gosec.Config
+		analyzer  *gosec.Analyzer
+		runner    func(string, []testutils.CodeSample)
+		buildTags []string
+		tests     bool
+	)
+
+	BeforeEach(func() {
+		logger, _ = testutils.NewLogger()
+		config = gosec.NewConfig()
+		analyzer = gosec.NewAnalyzer(config, tests, false, false, 1, logger)
+		runner = func(analyzerId string, samples []testutils.CodeSample) {
+			for n, sample := range samples {
+				analyzer.Reset()
+				analyzer.SetConfig(sample.Config)
+				analyzer.LoadAnalyzers(analyzers.Generate(false, analyzers.NewAnalyzerFilter(false, analyzerId)).AnalyzersInfo())
+				pkg := testutils.NewTestPackage()
+				defer pkg.Close()
+				for i, code := range sample.Code {
+					pkg.AddFile(fmt.Sprintf("sample_%d_%d.go", n, i), code)
+				}
+				err := pkg.Build()
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(pkg.PrintErrors()).Should(BeZero())
+				err = analyzer.Process(buildTags, pkg.Path)
+				Expect(err).ShouldNot(HaveOccurred())
+				issues, _, _ := analyzer.Report()
+				if len(issues) != sample.Errors {
+					fmt.Println(sample.Code)
+				}
+				Expect(issues).Should(HaveLen(sample.Errors))
+			}
+		}
+	})
+
+	Context("report correct errors for all samples", func() {
+		It("should detect HTTP request smuggling", func() {
+			runner("G113", testutils.SampleCodeG113)
+		})
+
+		It("should detect integer conversion overflow", func() {
+			runner("G115", testutils.SampleCodeG115)
+		})
+
+		It("should detect context propagation failures", func() {
+			runner("G118", testutils.SampleCodeG118)
+		})
+
+		It("should detect unsafe redirect header propagation", func() {
+			runner("G119", testutils.SampleCodeG119)
+		})
+
+		It("should detect unbounded form parsing", func() {
+			runner("G120", testutils.SampleCodeG120)
+		})
+
+		It("should detect unsafe CORS bypass patterns", func() {
+			runner("G121", testutils.SampleCodeG121)
+		})
+
+		It("should detect Walk/WalkDir symlink TOCTOU callback path usage", func() {
+			runner("G122", testutils.SampleCodeG122)
+		})
+
+		It("should detect TLS resumption VerifyPeerCertificate bypass patterns", func() {
+			runner("G123", testutils.SampleCodeG123)
+		})
+
+		It("should detect insecure HTTP cookie configuration", func() {
+			runner("G124", testutils.SampleCodeG124)
+		})
+
+		It("should detect hardcoded nonce/IV", func() {
+			runner("G407", testutils.SampleCodeG407)
+		})
+
+		It("should detect SSH PublicKeyCallback stateful misuse", func() {
+			runner("G408", testutils.SampleCodeG408)
+		})
+
+		It("should detect out of bounds slice access", func() {
+			runner("G602", testutils.SampleCodeG602)
+		})
+
+		It("should detect SQL injection via taint analysis", func() {
+			runner("G701", testutils.SampleCodeG701)
+		})
+
+		It("should detect command injection via taint analysis", func() {
+			runner("G702", testutils.SampleCodeG702)
+		})
+
+		It("should detect path traversal via taint analysis", func() {
+			runner("G703", testutils.SampleCodeG703)
+		})
+
+		It("should detect SSRF via taint analysis", func() {
+			runner("G704", testutils.SampleCodeG704)
+		})
+
+		It("should detect XSS via taint analysis", func() {
+			runner("G705", testutils.SampleCodeG705)
+		})
+
+		It("should detect log injection via taint analysis", func() {
+			runner("G706", testutils.SampleCodeG706)
+		})
+
+		It("should detect SMTP command/header injection via taint analysis", func() {
+			runner("G707", testutils.SampleCodeG707)
+		})
+
+		It("should detect server-side template injection via taint analysis", func() {
+			runner("G708", testutils.SampleCodeG708)
+		})
+
+		It("should detect unsafe deserialization via taint analysis", func() {
+			runner("G709", testutils.SampleCodeG709)
+		})
+
+		It("should detect open redirect via taint analysis", func() {
+			runner("G710", testutils.SampleCodeG710)
+		})
+	})
+})

@@ -1,0 +1,110 @@
+# This file contains a list of all Slack User Groups that are managed by SIG Release.
+
+usergroups:
+  # Should match the membership of the following teams at all times:
+  # - https://kubernetes.io/releases/release-managers/#release-managers
+  # - https://kubernetes.io/releases/release-managers/#release-managers-associates
+  - name: release-managers
+    long_name: Release Managers
+    description: >-
+      Release Managers. Ping for questions on branch cuts and building/packaging
+      Kubernetes.
+    channels:
+      - release-ci-signal
+      - release-management
+      - sig-release
+    members:
+      - ameukam             # Release Manager Associate
+      - cici37              # Release Manager
+      - cpanato             # Release Manager
+      - jeremyrickard       # Release Manager
+      - jimangel            # Release Manager Associate
+      - jrsapi              # Release Manager Associate
+      - justaugustus        # Release Manager
+      - palnabarun          # Release Manager
+      - puerco              # Release Manager
+      - salaxander          # Release Manager Associate
+      - saschagrunert       # Release Manager
+      - Verolop             # Release Manager
+      - xmudrii             # Release Manager
+
+  # Should match the membership of the following groups at all times:
+  # - Release Team Lead
+  # - Release Team Lead shadows
+  # - Emeritus Adviser
+  # - SIG Release leads
+  #
+  # Current release cycle: https://git.k8s.io/sig-release/releases/release-1.35/release-team.md
+  - name: release-team-leads
+    long_name: Release Team Leads
+    description: >-
+      Release Team Leads. Ping for questions on the current Kubernetes release
+      cycle.
+    channels:
+      - release-bug-triage
+      - release-ci-signal
+      - release-comms
+      - release-docs
+      - release-enhancements
+      - release-management
+      - release-notes
+      - sig-release
+    members:
+      - aibarbetta          # v1.36 RT Lead Shadow
+      - chadmcrowell        # v1.36 Comms Lead
+      - dipesh-rawat        # v1.36 RT Lead Shadow
+      - fsmunoz             # Release Team Subproject Lead
+      - jenshu              # v1.36 RT Lead Shadow
+      - jmickey             # v1.36 Enhancements Lead
+      - katcosgrove         # Release Team Subproject Lead
+      - Prajyot-Parab       # v1.36 Release Signal Lead
+      - rayandas            # v1.36 RT Lead Shadow
+      - rytswd              # v1.36 Lead
+      - sayanchowdhury      # v1.36 docs Lead
+
+  # Should match SIG Release Leads at all times:
+  # https://git.k8s.io/community/sig-release/README.md#leadership
+  - name: sig-release-leads
+    long_name: SIG Release Leads
+    description: >-
+      SIG Release Leads. Ping for questions on SIG Release process and escalations.
+    channels:
+      - release-ci-signal
+      - release-management
+      - sig-release
+    members:
+      - cpanato             # SIG Release Technical Lead
+      - jeremyrickard       # SIG Release Chair
+      - justaugustus        # SIG Release Chair
+      - puerco              # SIG Release Technical Lead
+      - saschagrunert       # SIG Release Chair
+      - Verolop             # SIG Release Technical Lead
+
+  # Should match the membership of the following teams at all times:
+  # - https://git.k8s.io/security/#product-security-committee-psc
+  # - https://kubernetes.io/releases/release-managers/#release-managers
+  - name: security-rel-team
+    long_name: Security Release Team
+    description: >-
+      Composite of Product Security Committee members and Release Managers. Ping
+      for questions on Kubernetes security releases.
+    channels:
+      - release-management
+      - sig-release
+    members:
+      - cjcullen # Product Security Committee
+      - cici37 # Release Manager
+      - cpanato # subproject owner / Release Manager
+      - enj # Produce Security Committee
+      - jeremyrickard # subproject owner / Release Manager
+      - joelsmith # Product Security Committee
+      - justaugustus # subproject owner / Release Manager
+      - micahhausler # Product Security Committee
+      - palnabarun # Release Manager
+      - puerco # subproject owner / Release Manager
+      - ritazh # Product Security Committee
+      - SaranBalaji90 # Product Security Committee
+      - saschagrunert # subproject owner / Release Manager
+      - tabbysable # Product Security Committee
+      - xmudrii # Release Manager
+      - Verolop # subproject owner / Release Manager

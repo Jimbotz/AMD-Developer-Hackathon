@@ -1,0 +1,8 @@
+# See the OWNERS docs at https://go.k8s.io/owners
+
+reviewers:
+  - wg-iot-edge-leads
+approvers:
+  - wg-iot-edge-leads
+labels:
+  - wg/iot-edge

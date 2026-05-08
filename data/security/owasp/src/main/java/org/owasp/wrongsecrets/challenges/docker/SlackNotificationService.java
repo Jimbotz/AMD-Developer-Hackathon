@@ -1,0 +1,100 @@
+package org.owasp.wrongsecrets.challenges.docker;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+/** Service for sending Slack notifications when challenges are completed. */
+@Service
+public class SlackNotificationService {
+
+  private static final Logger logger = LoggerFactory.getLogger(SlackNotificationService.class);
+
+  private final RestClient restClient;
+  private final Optional<Challenge59> challenge59;
+
+  public SlackNotificationService(
+      RestClient restClient, @Autowired(required = false) Challenge59 challenge59) {
+    this.restClient = restClient;
+    this.challenge59 = Optional.ofNullable(challenge59);
+  }
+
+  /**
+   * Sends a Slack notification when a challenge is completed.
+   *
+   * @param challengeName The name of the completed challenge
+   * @param userName Optional username of the person who completed the challenge
+   * @param userAgent Optional user agent string from the HTTP request
+   */
+  public void notifyChallengeCompletion(String challengeName, String userName, String userAgent) {
+    if (!isSlackConfigured()) {
+      logger.debug("Slack not configured, skipping notification for challenge: {}", challengeName);
+      return;
+    }
+
+    try {
+      String message = buildCompletionMessage(challengeName, userName, userAgent);
+      SlackMessage slackMessage = new SlackMessage(message);
+      String webhookUrl = challenge59.get().getSlackWebhookUrl();
+
+      restClient
+          .post()
+          .uri(webhookUrl)
+          .contentType(MediaType.APPLICATION_JSON)
+          .body(slackMessage)
+          .retrieve()
+          .toEntity(String.class);
+
+      logger.info(
+          "Successfully sent Slack notification for challenge completion: {}", challengeName);
+
+    } catch (Exception e) {
+      logger.warn(
+          "Failed to send Slack notification for challenge: {}. Message: {}",
+          challengeName,
+          e.getMessage());
+    }
+  }
+
+  /**
+   * Sends a Slack notification when a challenge is completed (backward compatibility method).
+   *
+   * @param challengeName The name of the completed challenge
+   * @param userName Optional username of the person who completed the challenge
+   */
+  public void notifyChallengeCompletion(String challengeName, String userName) {
+    notifyChallengeCompletion(challengeName, userName, null);
+  }
+
+  private boolean isSlackConfigured() {
+    return challenge59.isPresent()
+        && challenge59.get().getSlackWebhookUrl() != null
+        && !challenge59.get().getSlackWebhookUrl().trim().isEmpty()
+        && !challenge59.get().getSlackWebhookUrl().equals("not_set")
+        && challenge59.get().getSlackWebhookUrl().startsWith("https://hooks.slack.com");
+  }
+
+  private String buildCompletionMessage(String challengeName, String userName, String userAgent) {
+    String userPart = (userName != null && !userName.trim().isEmpty()) ? " by " + userName : "";
+    String userAgentPart =
+        (userAgent != null && !userAgent.trim().isEmpty())
+            ? " (User-Agent: " + userAgent + ")"
+            : "";
+
+    return String.format(
+        "🎉 Challenge %s completed%s%s! Another secret vulnerability discovered in WrongSecrets.",
+        challengeName, userPart, userAgentPart);
+  }
+
+  /** Simple record for Slack message payload. */
+  public record SlackMessage(@JsonProperty("text") String text) {
+    public SlackMessage(String text) {
+      this.text = text;
+    }
+  }
+}

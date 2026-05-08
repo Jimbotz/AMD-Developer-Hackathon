@@ -1,0 +1,24 @@
+# See the OWNERS docs at https://go.k8s.io/owners
+
+# These are the primary slack moderators.
+approvers:
+  - jeefy
+  - mrbobbytables
+  - coderanger
+  - munnerz
+  - DylanGraham
+  - jberkus
+  - idvoretskyi
+  - mkumatag
+  - stmcginnis
+reviewers:
+  - JoelSpeed
+emeritus_approvers:
+  - parispitmann
+  - katharine
+  - castrojo
+  - jdumars
+  - idealhack
+  - alejandrox1
+labels:
+  - area/slack-management

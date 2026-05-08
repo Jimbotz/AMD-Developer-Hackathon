@@ -1,0 +1,193 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 620" font-family="Arial, sans-serif">
+  <style>
+    .title { font-size: 24px; font-weight: bold; }
+    .section-label { font-size: 14px; font-weight: bold; }
+    .subsection-label { font-size: 12px; font-weight: bold; }
+    .box-text { font-size: 11px; text-anchor: middle; dominant-baseline: middle; }
+    .box-text-small { font-size: 9px; text-anchor: middle; dominant-baseline: middle; }
+    .legend-text { font-size: 11px; text-anchor: middle; dominant-baseline: middle; }
+    .committee { fill: #f8cecc; stroke: #b85450; }
+    .sig { fill: #dae8fc; stroke: #6c8ebf; }
+    .wg { fill: #d5e8d4; stroke: #82b366; }
+  </style>
+
+  <!-- Background -->
+  <rect width="100%" height="100%" fill="white"/>
+
+  <!-- Title -->
+  <text x="400" y="35" class="title">Community Group Structure</text>
+
+  <!-- Legend -->
+  <rect x="920" y="50" width="150" height="160" fill="none" stroke="#D6A23C" stroke-width="2" rx="5"/>
+  <rect x="940" y="70" width="110" height="28" class="committee"/>
+  <text x="995" y="84" class="legend-text">Committee</text>
+  <rect x="940" y="108" width="110" height="28" class="sig"/>
+  <text x="995" y="122" class="legend-text">SIG</text>
+  <rect x="940" y="146" width="110" height="28" class="wg"/>
+  <text x="995" y="160" class="legend-text">Working Group</text>
+
+  <!-- Section Labels (rotated) -->
+  <text x="30" y="120" class="section-label" transform="rotate(-90, 30, 120)">Project</text>
+  <text x="30" y="320" class="section-label" transform="rotate(-90, 30, 320)">Horizontal</text>
+  <text x="30" y="520" class="section-label" transform="rotate(-90, 30, 520)">Vertical</text>
+
+  <!-- ==================== -->
+  <!-- PROJECT LEVEL        -->
+  <!-- ==================== -->
+
+  <!-- Committees -->
+  <rect x="60" y="60" width="90" height="40" class="committee"/>
+  <text x="105" y="75" class="box-text">Code of</text>
+  <text x="105" y="90" class="box-text">Conduct</text>
+
+  <rect x="160" y="60" width="90" height="40" class="committee"/>
+  <text x="205" y="75" class="box-text">Security</text>
+  <text x="205" y="90" class="box-text">Response</text>
+
+  <rect x="260" y="60" width="90" height="40" class="committee"/>
+  <text x="305" y="80" class="box-text">Steering</text>
+
+  <!-- Project-level SIGs -->
+  <rect x="60" y="115" width="90" height="40" class="sig"/>
+  <text x="105" y="135" class="box-text">Architecture</text>
+
+  <rect x="160" y="115" width="90" height="40" class="sig"/>
+  <text x="205" y="130" class="box-text">Contributor</text>
+  <text x="205" y="145" class="box-text">Experience</text>
+
+  <rect x="260" y="115" width="90" height="40" class="sig"/>
+  <text x="305" y="135" class="box-text">Docs</text>
+
+  <rect x="360" y="115" width="90" height="40" class="sig"/>
+  <text x="405" y="135" class="box-text">Release</text>
+
+  <rect x="460" y="115" width="90" height="40" class="sig"/>
+  <text x="505" y="135" class="box-text">Testing</text>
+
+  <rect x="560" y="115" width="90" height="40" class="sig"/>
+  <text x="605" y="135" class="box-text">K8s Infra</text>
+
+  <!-- ==================== -->
+  <!-- HORIZONTAL           -->
+  <!-- ==================== -->
+
+  <!-- Horizontal SIGs Row 1 -->
+  <rect x="60" y="200" width="90" height="40" class="sig"/>
+  <text x="105" y="215" class="box-text">API</text>
+  <text x="105" y="230" class="box-text">Machinery</text>
+
+  <rect x="160" y="200" width="90" height="40" class="sig"/>
+  <text x="205" y="220" class="box-text">Auth</text>
+
+  <rect x="260" y="200" width="90" height="40" class="sig"/>
+  <text x="305" y="220" class="box-text">CLI</text>
+
+  <rect x="360" y="200" width="90" height="40" class="sig"/>
+  <text x="405" y="220" class="box-text">etcd</text>
+
+  <rect x="460" y="200" width="90" height="40" class="sig"/>
+  <text x="505" y="220" class="box-text-small">Instrumentation</text>
+
+  <rect x="560" y="200" width="90" height="40" class="sig"/>
+  <text x="605" y="220" class="box-text">Multicluster</text>
+
+  <rect x="660" y="200" width="90" height="40" class="sig"/>
+  <text x="705" y="220" class="box-text">Scalability</text>
+
+  <rect x="760" y="200" width="90" height="40" class="sig"/>
+  <text x="805" y="220" class="box-text">Security</text>
+
+  <!-- Horizontal SIGs Row 2 -->
+  <rect x="60" y="250" width="90" height="40" class="sig"/>
+  <text x="105" y="270" class="box-text">UI</text>
+
+  <rect x="160" y="250" width="90" height="40" class="sig"/>
+  <text x="205" y="270" class="box-text">Windows</text>
+
+  <!-- Horizontal WGs Row 1 -->
+  <rect x="60" y="310" width="90" height="40" class="wg"/>
+  <text x="105" y="325" class="box-text">Structured</text>
+  <text x="105" y="340" class="box-text">Logging</text>
+
+  <rect x="160" y="310" width="90" height="40" class="wg"/>
+  <text x="205" y="325" class="box-text">AI</text>
+  <text x="205" y="340" class="box-text">Conformance</text>
+
+  <rect x="260" y="310" width="90" height="40" class="wg"/>
+  <text x="305" y="330" class="box-text">AI Gateway</text>
+
+  <rect x="360" y="310" width="90" height="40" class="wg"/>
+  <text x="405" y="325" class="box-text">AI</text>
+  <text x="405" y="340" class="box-text">Integration</text>
+
+  <rect x="460" y="310" width="90" height="40" class="wg"/>
+  <text x="505" y="330" class="box-text">LTS</text>
+
+  <rect x="560" y="310" width="90" height="40" class="wg"/>
+  <text x="605" y="325" class="box-text">etcd</text>
+  <text x="605" y="340" class="box-text">Operator</text>
+
+  <!-- ==================== -->
+  <!-- VERTICAL             -->
+  <!-- ==================== -->
+
+  <!-- Section: Applications -->
+  <text x="60" y="395" class="subsection-label">Applications</text>
+
+  <rect x="60" y="410" width="90" height="40" class="sig"/>
+  <text x="105" y="430" class="box-text">Apps</text>
+
+  <rect x="60" y="460" width="90" height="40" class="wg"/>
+  <text x="105" y="480" class="box-text">Batch</text>
+
+  <rect x="160" y="460" width="90" height="40" class="wg"/>
+  <text x="205" y="480" class="box-text">Serving</text>
+
+  <!-- Section: Resource Management -->
+  <text x="280" y="395" class="subsection-label">Resource Management</text>
+
+  <rect x="280" y="410" width="90" height="40" class="sig"/>
+  <text x="325" y="430" class="box-text">Autoscaling</text>
+
+  <rect x="380" y="410" width="90" height="40" class="sig"/>
+  <text x="425" y="430" class="box-text">Network</text>
+
+  <rect x="480" y="410" width="90" height="40" class="sig"/>
+  <text x="525" y="430" class="box-text">Node</text>
+
+  <rect x="580" y="410" width="90" height="40" class="sig"/>
+  <text x="625" y="430" class="box-text">Scheduling</text>
+
+  <rect x="680" y="410" width="90" height="40" class="sig"/>
+  <text x="725" y="430" class="box-text">Storage</text>
+
+  <rect x="280" y="460" width="90" height="40" class="wg"/>
+  <text x="325" y="475" class="box-text-small">Device</text>
+  <text x="325" y="488" class="box-text-small">Management</text>
+
+  <rect x="380" y="460" width="90" height="40" class="wg"/>
+  <text x="425" y="475" class="box-text">Node</text>
+  <text x="425" y="488" class="box-text">Lifecycle</text>
+
+  <rect x="480" y="460" width="90" height="40" class="wg"/>
+  <text x="525" y="475" class="box-text-small">Checkpoint</text>
+  <text x="525" y="488" class="box-text-small">Restore</text>
+
+  <rect x="680" y="460" width="90" height="40" class="wg"/>
+  <text x="725" y="475" class="box-text">Data</text>
+  <text x="725" y="488" class="box-text">Protection</text>
+
+  <!-- Section: Infrastructure -->
+  <text x="800" y="395" class="subsection-label">Infrastructure</text>
+
+  <rect x="800" y="410" width="90" height="40" class="sig"/>
+  <text x="845" y="425" class="box-text">Cloud</text>
+  <text x="845" y="440" class="box-text">Provider</text>
+
+  <rect x="900" y="410" width="90" height="40" class="sig"/>
+  <text x="945" y="425" class="box-text">Cluster</text>
+  <text x="945" y="440" class="box-text">Lifecycle</text>
+
+  <!-- Footer note -->
+  <text x="550" y="560" style="font-size: 10px; fill: #666; text-anchor: middle;">Updated February 2026 - See sig-list.md for complete details</text>
+</svg>

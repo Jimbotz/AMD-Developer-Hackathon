@@ -1,0 +1,32 @@
+# See the OWNERS docs at https://go.k8s.io/owners
+
+filters:
+  ".*":
+    approvers:
+      - cblecker
+      - mrbobbytables
+      - nikhita
+      - jberkus
+      - sig-contributor-experience-leads
+      - committee-steering
+    emeritus_approvers:
+      - idvoretskyi
+      - parispittman
+      - jdumars
+      - alisondy
+      - castrojo
+      - calebamiles
+      - grodrigues3
+      - spiffxp
+  # ensure PRs for annual reports are generated
+  "annual-report-.*\\.md$":
+    labels:
+      - area/annual-reports
+  # label charter changes for review by steering
+  "(?i)charter.md":
+    required_reviewers:
+      - kubernetes/steering-committee
+    approvers:
+      - committee-steering
+    labels:
+      - committee/steering

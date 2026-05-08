@@ -1,0 +1,631 @@
+# This list contains a list of all Slack channels in alphabetical order.
+# This includes archived channels, which are marked with `archived: true`.
+
+channels:
+  - name: aicr
+  - name: africa-dev
+  - name: agent-sandbox
+  - name: airflow-operator
+  - name: akri
+  - name: azure-aks
+    id: CU3N85WJK
+  - name: aks-engine-dev
+    id: CU1CXUHN0
+    archived: true
+  - name: announcements
+  - name: antrea
+  - name: api-priority-and-fairness
+  - name: api-reviews
+  - name: apisnoop
+  - name: apko
+  - name: app-troubleshoot
+  - name: archived-sig-release
+    archived: true
+  - name: argentina
+  - name: arm64
+  - name: atmosphere
+  - name: aus-nz-dev
+  - name: aus-nz-users
+  - name: awesome-kubernetes
+  - name: aws-authenticator
+  - name: aws-controllers-k8s
+  - name: aws-gateway-api-controller
+  - name: aws-vpc-cni
+  - name: azure-service-operator
+  - name: bazel
+  - name: bindings-discuss
+  - name: blixt
+    archived: true
+  - name: bootkube
+    archived: true
+  - name: bpfman
+    id: C04UJBW2553
+  - name: br-dev
+  - name: brigade
+  - name: camptocamp-devops-stack
+  - name: canonical-kubernetes
+    id: CG1V2CAMB
+  - name: capsule
+  - name: cartographer
+  - name: cert-manager
+  - name: cert-manager-aws-privateca-issuer
+  - name: cert-manager-dev
+  - name: chairs-and-techleads
+  - name: chartcenter
+  - name: chartmuseum
+  - name: charts
+  - name: cka-exam-prep
+  - name: ckad-exam-prep
+  - name: cks-exam-prep
+  - name: claudie
+  - name: client-go-docs
+    archived: true
+  - name: cluster-addons
+  - name: cluster-api
+  - name: cluster-api-addon-helm
+  - name: cluster-api-aws
+  - name: cluster-api-aws-alerts
+  - name: cluster-api-azure
+  - name: cluster-api-baremetal
+  - name: cluster-api-cloud-director
+  - name: cluster-api-cloudstack
+  - name: cluster-api-digitalocean
+  - name: cluster-api-docker
+    archived: true
+  - name: cluster-api-gcp
+  - name: cluster-api-ibmcloud
+  - name: cluster-api-ionoscloud
+  - name: cluster-api-k3s
+  - name: cluster-api-kubemark
+  - name: cluster-api-kubevirt
+  - name: cluster-api-nested
+  - name: cluster-api-nutanix
+  - name: cluster-api-oci
+  - name: cluster-api-openstack
+  - name: cluster-api-operator
+  - name: cluster-api-packet
+  - name: cluster-api-proxmox
+  - name: cluster-api-release
+  - name: cluster-api-vsphere
+  - name: cluster-api-wg-machinepools
+  - name: cn-dev
+  - name: cn-events
+  - name: cn-users
+  - name: code-of-conduct
+  - name: community-sites
+    archived: true
+  - name: compliance-hipaa
+  - name: contour
+  - name: contributor-summit
+  - name: controller-runtime
+  - name: cozystack
+  - name: craft
+  - name: crash-diagnostics
+  - name: crd-installation
+  - name: cri-dockerd
+  - name: crio
+  - name: crossplane
+  - name: csi-secrets-store #this channel is for secrets-store-csi-driver which is a subproject of sig-auth
+  - name: de-events
+  - name: de-users
+  - name: deppy-dev
+    archived: true
+  - name: devfile
+  - name: devspace
+  - name: devstats
+  - name: dexidp
+  - name: digitalocean-k8s
+  - name: distroless
+  - name: diversity
+  - name: draft-dev
+  - name: draft-users
+  - name: druid-operator
+  - name: e2e-framework-dev
+  - name: e2e-framework-users
+  - name: ebpf
+  - name: educates
+  - name: eks
+  - name: eksctl
+  - name: elastickube
+  - name: elk-charts
+    archived: true
+  - name: emea-dev
+  - name: emea-users
+  - name: eraser
+  - name: es-users
+  - name: etcdadm
+  - name: evented-pleg
+  - name: events
+  - name: external-dns
+  - name: external-secrets
+  - name: external-secrets-dev
+  - name: falco
+  - name: fiaas
+  - name: finops
+  - name: fi-users
+  - name: flatcar
+  - name: flink-operator
+  - name: fr-events
+  - name: fr-users
+  - name: fury-distribution
+  - name: garden
+    archived: true
+  - name: garden-dev
+    archived: true
+  - name: gateway-api-inference-extension
+  - name: gardener
+  - name: gimbal
+  - name: github
+    archived: true
+  - name: github-management
+  - name: gitkube
+  - name: gitops
+  - name: gke
+  - name: gloo
+  - name: gophercloud
+  - name: gpu-nvidia
+  - name: grafana-operator
+  - name: haproxy-ingress
+  - name: headlamp
+    id: C01FXB5E8ER
+  - name: headlamp-dev
+    archived: true
+  - name: helm-chart-testing
+  - name: helm-deprecated
+    archived: true
+  - name: helm-dev
+  - name: helm-users
+  - name: hephy-dev
+    id: C67TNP3FF
+  - name: hephy-users
+    id: C678BMZ89
+  - name: hetzner
+  - name: hmc-dev
+  - name: homelab
+  - name: hybrid-cloud-users
+  - name: hydrophone
+  - name: id-events
+  - name: id-users
+  - name: il-users
+  - name: image-builder
+  - name: in-dev
+  - name: in-events
+  - name: in-users
+  - name: inference-perf
+  - name: ingate-dev
+    archived: true
+  - name: ingate-users
+    archived: true
+  - name: ingress-nginx-dev
+    archived: true
+  - name: ingress-nginx-users
+    id: CANQGM8BA
+  - name: inspektor-gadget
+  - name: it-events
+  - name: it-users
+  - name: java
+  - name: jenkins-ci
+  - name: jenkins-x-dev
+  - name: jenkins-x-user
+  - name: jp-dev
+  - name: jp-events
+  - name: jp-mentoring
+  - name: jp-users
+  - name: jp-users-novice
+  - name: jsonnet
+  - name: carvel
+    id: CH8KCCKA5
+  - name: k0s-dev
+  - name: k0s-users
+  - name: kalm
+  - name: kaniko
+  - name: karpenter
+  - name: karpenter-dev
+  - name: k8s-ai-conformance
+    id: C09813W8DC2
+  - name: k8s-dual-stack
+    archived: true
+  - name: k8s-image-swapper
+  # k8s-infra-alerts is defined in sig-k8s-infra/
+  - name: k8s-release
+    archived: true
+  - name: k8spin
+  - name: kamaji
+  - name: kapitan
+  - name: kcp-dev
+  - name: kcp-users
+    id: C021U8WSAFK
+  - name: keda
+  - name: keda-dev
+  - name: keda-docs
+  - name: keel
+  - name: kiam
+  - name: kilo
+  - name: kiosk
+  - name: kcli
+  - name: kcna-exam-prep
+  - name: klog
+  - name: knative
+  - name: ko-build
+    id: C01T7DTP65S
+  - name: kompose
+  - name: kong
+  - name: konveyor
+  - name: konveyor-dev
+  - name: koordinator
+  - name: kops-dev
+  - name: kops-users
+  - name: kots
+    id: CFFKXV0JZ
+  - name: kpack
+    archived: true
+  - name: kpt
+  - name: kr-dev
+  - name: kr-users
+  - name: krafternetes
+  - name: kraken
+  - name: krane
+  - name: krator
+  - name: kro
+  - name: krew
+  - name: krex
+  - name: krustlet
+  - name: kuadrant
+  - name: kube-aws
+  - name: kube-bind
+  - name: kube-burner
+  - name: kube-deploy
+    archived: true
+  - name: kube-monkey
+  - name: kube-oidc-proxy
+  - name: kube-operating-systems-dev
+  - name: kube-router
+  - name: kube-score
+  - name: kube-spawn
+  - name: kube-state-metrics
+  - name: kube-vip
+  - name: kubeadm
+  - name: kubeadm-cn
+  - name: kubeapps
+  - name: kubearchive
+  - name: kubebuilder
+  - name: kubecon
+  - name: kubecfg
+  - name: kubectl-nvim
+  - name: kubectl-trace
+  - name: kubectl-validate
+  - name: kubedb
+    archived: true
+  - name: kubeinit
+  - name: kubekhan
+    archived: true
+  - name: kubeless
+  - name: kubemove
+  - name: kubeone
+  - name: kubepack
+    archived: true
+  - name: kubestack
+  - name: kubestellar-dev
+  - name: kuberhealthy
+  - name: kubernetes-arm
+  - name: kubernetes-batch-jobs
+    archived: true
+  - name: kubernetes-careers
+  - name: kubernetes-client
+  - name: kubernetes-new-contributors
+    id: C09R23FHP
+  # kubernetes-docs-* channels are defined in sig-docs/
+  - name: kubernetes-novice
+  - name: kubernetes-operators
+  - name: kubernetes-org-members
+  - name: kubernetes-ruby
+    archived: true
+  - name: kubernetes-security
+  - name: kubernetes-streaming
+    archived: true
+  - name: kubernetes-teachers
+    archived: true
+  - name: kubernetes-users
+  - name: kubeslice
+  - name: kubespray
+  - name: kubespray-dev
+  - name: kubevirt-dev
+  - name: kubetail
+  - name: kubewarden
+  - name: kubewarden-dev
+  - name: kubicorn
+  - name: kudo
+  - name: kurl
+  - name: kustomize
+  - name: kwok
+  - name: kwok-dev
+  - name: kyverno
+  - name: kyverno-chainsaw
+  - name: kyverno-dev
+  - name: leadership-summit
+    archived: true
+  - name: linode
+  - name: litmus
+  - name: litmus-dev
+  - name: lokomotive
+    archived: true
+  - name: loxilb
+  - name: lula-dev
+  - name: magnum-cluster-api
+  - name: malaysia-users
+  - name: malta-users
+  - name: meet-our-contributors
+    archived: true
+  - name: meetup-athens
+  - name: meetup-atlanta
+  - name: meetup-austin
+  - name: meetup-bayarea
+  - name: meetup-bordeaux
+  - name: meetup-boston
+  - name: meetup-dfw
+  - name: meetup-edinburgh
+  - name: meetup-egypt
+  - name: meetup-guatemala
+  - name: meetup-hannover
+  - name: meetup-hongkong
+  - name: meetup-lasvegas
+  - name: meetup-losangeles
+  - name: meetup-manchester
+  - name: meetup-minneapolis
+  - name: meetup-nyc
+  - name: meetup-dc
+  - name: meetup-paris
+  - name: meetup-philadelphia
+  - name: meetup-pittsburgh
+  - name: meetup-sacramento
+  - name: meetup-sanantonio
+  - name: meetup-sandiego
+  - name: meetup-seattle
+  - name: meetup-toulouse
+  - name: meetup-trondheim
+  - name: meetup-tunisia
+  - name: metacontroller
+  - name: metal-stack
+  - name: metallb
+  - name: metallb-dev
+  - name: microk8s
+  - name: minikube
+  - name: minikube-dev
+  - name: monitoring-mixins
+  - name: monolith
+    archived: true
+  - name: multi-platform
+  - name: myks
+  - name: mysql-operator
+  - name: nais
+  - name: nauticus
+  - name: navigator
+    archived: true
+  - name: ncw-staff
+    archived: true
+  - name: netmaker
+  - name: nl-users
+  - name: node-feature-discovery
+  - name: node-problem-detector
+  - name: norw-users
+  - name: octant
+  - name: odo
+  - name: office-hours
+    archived: true
+  - name: okd-dev
+  - name: okteto
+  - name: olm-dev
+  - name: open-cluster-mgmt
+  - name: open-component-model
+  - name: opencontainers
+  - name: openebs
+  - name: openebs-dev
+  - name: openkruise
+  - name: openshift-dev
+    archived: true
+  - name: openshift-users
+  - name: openstack-helm
+  - name: openstack-kolla
+  - name: openstack-magnum
+  - name: operator-builder
+  - name: operator-framework-community
+  - name: operator-sdk-dev
+  - name: ops-status
+    archived: true
+  - name: osbkit
+  - name: outreachy-apps
+    id: CDH610735
+  - name: paralus
+  - name: pepr
+  - name: pharmer
+    archived: true
+  - name: pinniped
+  - name: pl-users
+  - name: podman-desktop
+  - name: pr-reviews
+  - name: primaza
+  - name: prometheus
+  - name: prometheus-operator
+  - name: prometheus-operator-dev
+  - name: provider-oci
+  - name: pt_br-users
+  - name: purelb-users
+  - name: raksh
+    archived: true
+  - name: rancher
+  - name: random
+    archived: true
+  - name: reconcilerio
+  - name: reddit-mods
+  - name: riscv
+  - name: rktnetes
+  - name: ro-users
+  - name: rukpak-dev
+    archived: true
+  - name: ru-users
+  - name: scaleway-k8s
+  - name: schemahero
+  - name: sovereign-cloud-stack
+  - name: se-users
+  - name: sealed-secrets
+  - name: security-profiles-operator
+    id: C013FQNB0A2
+  - name: service-binding-operator
+  - name: shippable
+  - name: shipper
+  - name: shipwright
+  - name: shoutouts
+  - name: sig-api-machinery
+  - name: sig-api-machinery-cel-dev
+  - name: sig-api-machinery-dev-tools
+  - name: sig-api-machinery-storageversion-dev
+  - name: sig-apps
+  - name: sig-auth
+  - name: sig-auth-authenticators-dev
+  - name: sig-auth-authorizers-dev
+  - name: sig-auth-certificates-dev
+  - name: sig-auth-kms-dev
+  - name: sig-auth-triage
+  - name: sig-autoscaling
+  - name: sig-autoscaling-api
+  - name: sig-cli
+  - name: sig-cli-krm-functions
+    archived: true
+  - name: sig-clstr-life-leads
+  - name: sig-cluster-lifecycle
+  - name: sig-cluster-ops
+    archived: true
+  - name: sig-configuration
+    archived: true
+  - name: sig-contribex
+  - name: sig-contribex-meetings
+    archived: true
+  - name: sig-contribex-comms
+  - name: sig-contribex-elections
+  - name: sig-contribex-nco-staff
+  - name: sig-contribex-triage
+    archived: true
+  # sig-docs* channels are defined in sig-docs/
+  - name: sig-etcd
+    id: C3HD8ARJ5
+  - name: sig-high-availability
+    archived: true
+  - name: sig-instrumentation
+  - name: sig-multicluster
+  - name: sig-network
+  - name: sig-network-agentic-networking
+  - name: sig-network-ingress2gateway
+  - name: sig-network-kni
+  - name: sig-network-multi-network
+  # sig-node channels are defined in sig-node/
+  - name: sig-scalability
+  # sig-scheduling channels are defined in sig-scheduling/
+  # sig-security* channels are defined in sig-security/
+  - name: sig-service-catalog
+    archived: true
+  # sig-testing channels are defined in sig-testing/
+  - name: sig-ui
+  - name: sig-usability
+    archived: true
+  - name: sig-windows
+  - name: sig-windows-leads
+  - name: simkube
+  - name: skaffold
+  - name: slack-admins
+  - name: slack-infra
+  - name: solr-operator
+  - name: sonobuoy
+  - name: spark-operator
+    archived: true
+  - name: spegel
+  - name: spinnaker
+  - name: sre
+  - name: steering-committee
+  - name: submariner
+  - name: surveys
+  - name: summit-staff
+  - name: suse-caasp
+  - name: syself
+  - name: talk-proposals
+    archived: true
+  - name: tanzu-community-edition
+    archived: true
+  - name: tanzu-streaming-runtimes
+  - name: terraform-kops
+  - name: terraform-providers
+  - name: terranetes
+  - name: test-failures
+  - name: tilt
+  - name: tn-users
+  - name: topology-aware-scheduling
+  - name: tor-controller
+  - name: tr-events
+  - name: tr-users
+  - name: traefik
+  - name: travis-ci
+  - name: tw-users
+  - name: ug-big-data
+    id: C0ELB338T
+    archived: true
+  - name: ug-vmware
+  - name: undistro
+  - name: vcluster
+  - name: velero-data-mover
+  - name: velero-dev
+  - name: velero-users
+    id: C6VCGP4MT
+  - name: vertical-pod-autoscaler
+  - name: virtlet
+  - name: virtual-kubelet
+  - name: virtualization
+  - name: vsphere
+    archived: true
+  - name: wg-ai-gateway
+  - name: wg-ai-integration
+    archived: true
+  - name: wg-app-def
+    archived: true
+  - name: wg-api-expression
+  - name: wg-apply
+    archived: true
+  - name: wg-batch
+  - name: wg-serving
+    archived: true
+  - name: wg-checkpoint-restore
+  - name: wg-component-standard
+    archived: true
+  - name: wg-component-standard-mentorship
+    archived: true
+  - name: wg-data-protection
+  - name: wg-device-management
+    id: C0409NGC1TK
+  - name: wg-etcd-operator
+  - name: wg-iot-edge
+  # sig-k8s-infra is defined in sig-k8s-infra/
+  - name: wg-lts
+  - name: wg-machine-learning
+    archived: true
+  - name: wg-multitenancy
+  - name: wg-naming
+    archived: true
+  - name: wg-node-lifecycle
+  - name: wg-onprem
+    archived: true
+  - name: wg-policy
+    archived: true
+  - name: wg-reliability
+    archived: true
+  - name: wg-resource-mgmt
+    archived: true
+  - name: wg-structured-logging
+  - name: wg-security-audit
+    archived: true
+  - name: wg-virtual-kubelet
+    archived: true
+  - name: windows-containerd
+  - name: workshop-chat
+  - name: yaml-overlay-tool
+  - name: zarf
+  - name: zarf-dev
+    archived: true
+  - name: krkn

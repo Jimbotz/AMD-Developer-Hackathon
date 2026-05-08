@@ -1,0 +1,8 @@
+# See the OWNERS docs at https://go.k8s.io/owners
+
+reviewers:
+  - wg-resource-management-leads
+approvers:
+  - wg-resource-management-leads
+labels:
+  - wg/resource-management

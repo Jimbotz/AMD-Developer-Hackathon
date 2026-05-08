@@ -1,0 +1,74 @@
+restrictions:
+  - path: users.yaml
+    users: true
+  - path: channels.yaml
+    channels:
+      - ".*"
+    template: true
+  - path: usergroups.yaml
+    usergroups:
+      - ".*"
+  - path: template.yaml
+    template: true
+  - path: "sig-architecture/*.yaml"
+    channels:
+      - "^sig-architecture$"
+      - "^enhancements$"
+      - "^k8s-code-organization$"
+      - "^k8s-conformance$"
+      - "^prod-readiness$"
+    usergroups:
+      - "^enhancements-owners$"
+  - path: "sig-docs/*.yaml"
+    channels:
+      - "^kubernetes-docs-[a-z]{2}(-[a-z]{2})?(-maintainers)?$"
+      - "^sig-docs$"
+      - "^sig-docs-.*$"
+  - path: "sig-k8s-infra/*.yaml"
+    channels:
+      - "^k8s-infra-.*$"
+      - "^sig-k8s-infra$"
+  - path: "sig-network/*.yaml"
+    channels:
+      - "^sig-network-.*$"
+  - path: "sig-node/*.yaml"
+    channels:
+      - "^sig-node"
+    usergroups:
+      - "^dra-dev$"
+  - path: "sig-release/*.yaml"
+    channels:
+      - "^sig-release$"
+      - "^release-"
+    usergroups:
+      - "^sig-release-"
+      - "^release-"
+      - "^security-rel-team$"
+  - path: "sig-scheduling/*.yaml"
+    channels:
+      - "^sig-scheduling"
+      - "^workload-aware-scheduling"
+  - path: "sig-security/*.yaml"
+    channels:
+      - "^sig-security$"
+      - "^sig-security-"
+  - path: "sig-storage/*.yaml"
+    channels:
+      - "^sig-storage$"
+      - "^sig-storage-"
+      - "^csi$"
+      - "^csi-"
+  - path: "sig-cloud-provider/*.yaml"
+    channels:
+      - "^sig-cloud-provider$"
+      - "^cloud-provider-extraction$"
+      - "^provider-"
+      - "^apiserver-network-proxy$"
+  - path: "sig-testing/*.yaml"
+    channels:
+      - "^sig-testing"
+      - "^kind"
+      - "^prow"
+      - "^testgrid"
+      - "^testing"
+  - path: "**/*" # prevent any other file from containing anything
