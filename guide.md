@@ -2,6 +2,8 @@
 
 Esta guía detalla los pasos necesarios para desplegar y ejecutar el sistema de validación de ADRs en la infraestructura de AMD, aprovechando los aceleradores Instinct (MI300X, MI210, etc.) y el ecosistema ROCm.
 
+> **TIP**: También puedes seguir esta guía de forma interactiva usando el notebook `amd_deployment_guide.ipynb` incluido en el repositorio.
+
 ## 1. Selección de Hardware y Gráfica
 
 Para este proyecto (Qwen3-8B + Qdrant + Fine-tuning), recomendamos la siguiente selección en el panel de AMD Developer Cloud:
@@ -38,14 +40,16 @@ source venv/bin/activate
 ### B. Instalar PyTorch optimizado para ROCm
 No uses la instalación estándar. Instala la versión compilada para los aceleradores AMD:
 ```bash
-# Para ROCm 6.0 (Ajustar según la versión reportada por rocm-smi)
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.0
+# Para ROCm 6.2 (Ajustar según la versión reportada por rocm-smi)
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2
 ```
 
 ### C. Instalar dependencias del proyecto
 ```bash
 pip install -r backend/requirements.txt
-pip install transformers peft sentence-transformers accelerate bitsandbytes
+pip install transformers peft sentence-transformers accelerate
+# Unsloth para AMD/ROCm
+pip install "unsloth[rocm] @ git+https://github.com/unslothai/unsloth.git"
 ```
 
 ## 4. Despliegue de Servicios

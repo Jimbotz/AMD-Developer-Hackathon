@@ -98,6 +98,33 @@ def create_fine_tuning_dataset(base_path, output_path):
         ]
     })
 
+    # Example 4: Contrastive (Rejected Shared Database)
+    training_data.append({
+        "messages": [
+            {"role": "system", "content": "You are an expert in Architecture Decision Records (ADRs). Systematically critique the architecture using AWS/Cloud Well-Architected Framework principles and identify security threats using the STRIDE methodology (Spoofing, Tampering, Repudiation, Info Disclosure, DoS, EoP). Provide actionable recommendations."},
+            {"role": "user", "content": "Analyze this proposed ADR:\n\nTitle: Single Shared Database for Microservices\n\nContent:\nWe propose that all 10 microservices share a single SQL database to simplify operations and reduce costs. All services will connect to the same schema.\n\nShould we proceed?"},
+            {"role": "assistant", "content": "## Architectural Critique\n\n### WELL-ARCHITECTED EVALUATION\n\n**1. Reliability (REJECTED):**\nThis proposal creates a single point of failure. A single database failure or a slow query from one service will bring down all 10 microservices, severely violating the Reliability pillar.\n\n**2. Performance Efficiency:**\nDatabase contention will be high. Different services have different scaling needs; you cannot scale the Orders DB independently of the Catalog DB.\n\n**3. Operational Excellence:**\nTight coupling. Changing a schema for one service requires coordination across all 10 services, slowing down the development lifecycle.\n\n### STRIDE THREAT ANALYSIS\n\n*   **Information Disclosure:** Services can accidentally read data from other services they shouldn't have access to (e.g., User service reading Payment secrets).\n*   **Elevation of Privilege:** If one service is compromised, the attacker has access to the database credentials which likely provide access to the entire shared schema.\n\n### RECOMMENDATION\n\n**REJECT this ADR.** Implement the **Database-per-Service** pattern. Use independent databases for each microservice to ensure loose coupling, fault tolerance, and clear data ownership."}
+        ]
+    })
+
+    # Example 5: STRIDE Analysis (API Gateway)
+    training_data.append({
+        "messages": [
+            {"role": "system", "content": "You are an expert in Architecture Decision Records (ADRs). Systematically critique the architecture using AWS/Cloud Well-Architected Framework principles and identify security threats using the STRIDE methodology (Spoofing, Tampering, Repudiation, Info Disclosure, DoS, EoP). Provide actionable recommendations."},
+            {"role": "user", "content": "Analyze this ADR:\n\nTitle: Expose internal microservices directly to the internet\n\nContent:\nTo reduce latency, we will expose our internal microservices directly to the internet using public IP addresses, bypassing the API Gateway for 'performance reasons'."},
+            {"role": "assistant", "content": "## STRIDE Security Analysis\n\n### THREATS IDENTIFIED\n\n1.  **Spoofing:** Without a centralized API Gateway, every microservice must implement its own complex authentication logic. There is a high risk of misconfiguration leading to identity spoofing.\n2.  **Tampering:** Direct exposure increases the attack surface for data tampering. Internal APIs often lack the rigorous input validation that edge-facing gateways provide.\n3.  **Information Disclosure:** Internal error messages or debug headers might be exposed directly to the internet, leaking infrastructure details.\n4.  **Denial of Service (DoS):** You lose the centralized rate limiting and DDoS protection provided by an API Gateway or WAF.\n\n### WELL-ARCHITECTED EVALUATION\n\n**1. Security Pillar:**\nViolates the principle of 'Apply security at all layers' and 'Keep people away from data'. Direct exposure is a critical security failure.\n\n### RECOMMENDATION\n\n**REJECT.** Reinstate the **API Gateway** pattern. Use a gateway for centralized authentication, rate limiting, and WAF integration. Use a Private Subnet for microservices and expose only the Gateway."}
+        ]
+    })
+
+    # Example 6: Well-Architected Evaluation (S3 Static Site)
+    training_data.append({
+        "messages": [
+            {"role": "system", "content": "You are an expert in Architecture Decision Records (ADRs). Systematically critique the architecture using AWS/Cloud Well-Architected Framework principles and identify security threats using the STRIDE methodology (Spoofing, Tampering, Repudiation, Info Disclosure, DoS, EoP). Provide actionable recommendations."},
+            {"role": "user", "content": "Analyze this ADR:\n\nTitle: Use AWS S3 for hosting the frontend static website\n\nContent:\nWe will use an S3 bucket configured for 'Static Website Hosting'. We will make the bucket public so everyone can access the site."},
+            {"role": "assistant", "content": "## Architectural Critique\n\n### WELL-ARCHITECTED EVALUATION\n\n**1. Performance Efficiency:**\nS3 static hosting is efficient but lacks global distribution. Use **Amazon CloudFront** as a CDN to reduce latency globally.\n\n**2. Security Pillar:**\n**CRITICAL RISK:** Making an S3 bucket public is a security anti-pattern. While necessary for static hosting directly from S3, it exposes the bucket to potential misconfiguration risks.\n\n### STRIDE THREAT ANALYSIS\n\n*   **Tampering:** If bucket permissions are misconfigured, attackers could replace the static files with malicious ones.\n*   **Information Disclosure:** Public buckets are often crawled; any 'hidden' files or accidentally uploaded secrets will be exposed.\n\n### RECOMMENDATION\n\n**IMPROVE.** Do not use public S3 buckets directly. Instead:\n1. Use **CloudFront** with **Origin Access Control (OAC)**.\n2. Keep the S3 bucket **private**.\n3. Enable **S3 Versioning** to protect against accidental tampering or deletion."}
+        ]
+    })
+
     # Add more training examples from collected ADRs
     for i, adr in enumerate(all_adrs[:20]):
         training_data.append({

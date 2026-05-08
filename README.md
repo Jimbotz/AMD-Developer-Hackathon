@@ -126,8 +126,16 @@ Generated from:
 
 ## Hardware Requirements
 
-- **AMD MI300X**: 192GB HBM3 (recommended for fine-tuning)
-- **Alternative**: Any GPU with 24GB+ VRAM for inference only
+- **AMD Instinct™ MI300X**: 192GB HBM3 (Optimized for native BF16 inference and fine-tuning)
+- **AMD Instinct™ MI210**: 64GB HBM2e
+- **Alternative**: Any GPU with 24GB+ VRAM
+
+## AMD Developer Cloud Deployment
+
+This project is optimized for the AMD Developer Cloud. For a step-by-step interactive setup, use the included Jupyter Notebook:
+[**amd_deployment_guide.ipynb**](./amd_deployment_guide.ipynb)
+
+See the full [**Deployment Guide (Spanish)**](./guide.md) for more details.
 
 ## Software Requirements
 

@@ -122,7 +122,7 @@ def load_model():
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name=MODEL_NAME,
             max_seq_length=MAX_SEQ_LENGTH,
-            load_in_4bit=True,
+            load_in_4bit=False,  # Native BF16 for MI300X
             dtype=dtype,
             trust_remote_code=True,
         )
@@ -130,21 +130,14 @@ def load_model():
         # Apply LoRA
         model = FastLanguageModel.get_peft_model(model, **LORA_CONFIG)
 
-        print("✅ Model loaded with Unsloth optimizations")
+        print("✅ Model loaded with Unsloth optimizations (Native BF16)")
     else:
         # Fallback to standard transformers
-        from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-
-        bnb_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=dtype,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type="nf4",
-        )
+        from transformers import AutoModelForCausalLM, AutoTokenizer
 
         model = AutoModelForCausalLM.from_pretrained(
             MODEL_NAME,
-            quantization_config=bnb_config,
+            torch_dtype=dtype,
             device_map="auto",
             trust_remote_code=True,
         )

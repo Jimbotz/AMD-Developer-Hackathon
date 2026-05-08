@@ -95,6 +95,35 @@ def extract_adrs_from_files(base_path: Path):
                 "source": "plantillas/examples"
             })
 
+    # Cloud Architecture ADRs
+    cloud_arch_dir = base_path / "data" / "adrs" / "cloud-architecture"
+    if cloud_arch_dir.exists():
+        for md_file in cloud_arch_dir.glob("*.md"):
+            content = md_file.read_text(encoding='utf-8')
+            status = "accepted"
+            if "REJECTED" in content or "rejected" in md_file.name.lower():
+                status = "rejected"
+            adrs.append({
+                "title": md_file.stem.replace("-", " ").title(),
+                "content": content[:3000],
+                "status": status,
+                "category": "cloud-architecture",
+                "source": "internal/cloud-architecture"
+            })
+
+    # Threat Modeling ADRs
+    threat_model_dir = base_path / "data" / "adrs" / "threat-modeling"
+    if threat_model_dir.exists():
+        for md_file in threat_model_dir.glob("*.md"):
+            content = md_file.read_text(encoding='utf-8')
+            adrs.append({
+                "title": md_file.stem.replace("-", " ").title(),
+                "content": content[:3000],
+                "status": "reference",
+                "category": "threat-modeling",
+                "source": "internal/threat-modeling"
+            })
+
     return adrs
 
 def generate_mock_embedding(text: str) -> list:

@@ -17,7 +17,8 @@ from pathlib import Path
 
 # Try to import transformers, handle gracefully if not available
 try:
-    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from peft import PeftModel
     TRANSFORMERS_AVAILABLE = True
 except ImportError:
     TRANSFORMERS_AVAILABLE = False
@@ -111,19 +112,12 @@ async def lifespan(app: FastAPI):
     # Initialize LLM (if available)
     if TRANSFORMERS_AVAILABLE:
         try:
-            print(f"🔄 Loading base model...")
-
-            bnb_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.bfloat16,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type="nf4",
-            )
+            print(f"🔄 Loading base model in native BF16...")
 
             base_model = "Qwen/Qwen3-8B"
             model = AutoModelForCausalLM.from_pretrained(
                 base_model,
-                quantization_config=bnb_config,
+                torch_dtype=torch.bfloat16,
                 device_map="auto",
                 trust_remote_code=True,
             )
@@ -391,12 +385,7 @@ async def validate_adr(request: ADRValidationRequest):
             context_text = "\n".join(context_parts)
 
             prompt = f"""<|system|>
-You are an expert in Architecture Decision Records (ADRs). Analyze the provided ADR for:
-1. Contradictions with historical decisions
-2. Security risks and vulnerabilities
-3. Recommendations for improvement
-
-Provide your analysis in a structured format.
+You are an expert in Architecture Decision Records (ADRs). Systematically critique the architecture using AWS/Cloud Well-Architected Framework principles and identify security threats using the STRIDE methodology (Spoofing, Tampering, Repudiation, Info Disclosure, DoS, EoP). Provide actionable recommendations.
 </|system|>
 
 <|user|>
