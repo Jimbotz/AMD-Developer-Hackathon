@@ -23,10 +23,23 @@ for _int_type in range(1, 9):
         setattr(torch, _attr, torch.int8)
 print("🛠️  Patched missing 'torch.intX' attributes")
 
-# 2. Disable torchao integration in transformers to avoid further issues
-os.environ["TRANSFORMERS_NO_TORCHAO"] = "1"
+# 2. FIX: torch.utils._pytree has no attribute 'register_constant'
+# This happens in some ROCm torch builds where torchao/transformers expect a newer pytree API
+import torch.utils._pytree
+if not hasattr(torch.utils._pytree, "register_constant"):
+    def _mock_register_constant(cls):
+        # Mocking the registration — doesn't affect standard causal LM training
+        return cls
+    torch.utils._pytree.register_constant = _mock_register_constant
+    print("🛠️  Patched missing 'torch.utils._pytree.register_constant' attribute")
 
-# 3. Patch the specific bug in Torch 2.4/2.5 + Python 3.12 type hint registration
+# 3. Disable torchao integration in transformers to avoid further issues
+# We set this as early as possible
+os.environ["TRANSFORMERS_NO_TORCHAO"] = "1"
+# Also disable bitsandbytes/flash_attn if they cause import issues in specific environments
+# os.environ["BNB_CUDA_VERSION"] = "0" # Force bitsandbytes to not look for CUDA
+
+# 4. Patch the specific bug in Torch 2.4/2.5 + Python 3.12 type hint registration
 try:
     import torch._library.infer_schema
     _original_infer_schema = torch._library.infer_schema.infer_schema
@@ -183,7 +196,7 @@ def load_model():
 
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
-        dtype=dtype,
+        torch_dtype=dtype,
         device_map="auto",
         trust_remote_code=True,
     )
