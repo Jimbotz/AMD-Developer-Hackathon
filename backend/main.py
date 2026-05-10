@@ -378,6 +378,7 @@ async def validate_adr(request: ADRValidationRequest):
                 with_payload=True
             )
 
+
             for r in results:
                 related_adrs.append(RelatedADR(
                     title=r.payload.get("title", ""),
