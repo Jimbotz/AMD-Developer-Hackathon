@@ -21,45 +21,38 @@ for _int_type in range(1, 9):
     _attr = f"int{_int_type}"
     if not hasattr(torch, _attr):
         setattr(torch, _attr, torch.int8)
-print("🛠️  Patched missing 'torch.intX' attributes")
+print("Patched missing 'torch.intX' attributes")
 
 # 2. FIX: torch.utils._pytree has no attribute 'register_constant'
-# This happens in some ROCm torch builds where torchao/transformers expect a newer pytree API
 import torch.utils._pytree
 if not hasattr(torch.utils._pytree, "register_constant"):
     def _mock_register_constant(cls):
-        # Mocking the registration — doesn't affect standard causal LM training
         return cls
     torch.utils._pytree.register_constant = _mock_register_constant
-    print("🛠️  Patched missing 'torch.utils._pytree.register_constant' attribute")
+    print("Patched missing 'torch.utils._pytree.register_constant' attribute")
 
-# 3. Disable torchao integration in transformers to avoid further issues
-# We set this as early as possible
+# 3. Disable torchao integration in transformers
 os.environ["TRANSFORMERS_NO_TORCHAO"] = "1"
-# Also disable bitsandbytes/flash_attn if they cause import issues in specific environments
-# os.environ["BNB_CUDA_VERSION"] = "0" # Force bitsandbytes to not look for CUDA
 
 # 4. Patch the specific bug in Torch 2.4/2.5 + Python 3.12 type hint registration
 try:
     import torch._library.infer_schema
     _original_infer_schema = torch._library.infer_schema.infer_schema
 
-    # Signature varies across torch versions, use *args, **kwargs for robustness
     def _patched_infer_schema(*args, **kwargs):
         try:
             return _original_infer_schema(*args, **kwargs)
         except ValueError as e:
             if "unsupported type torch.Tensor" in str(e):
-                # Try to extract the function from args
                 fn = args[0] if args else kwargs.get('fn')
                 if fn and "grouped_mm_fallback" in str(fn):
                     return "transformers::grouped_mm_fallback(Tensor input, Tensor weight, Tensor offs) -> Tensor"
             raise e
 
     torch._library.infer_schema.infer_schema = _patched_infer_schema
-    print("🛠️  Applied Torch type-hint patch for ROCm + Python 3.12")
+    print("Applied Torch type-hint patch for ROCm + Python 3.12")
 except Exception as e:
-    print(f"⚠️  Failed to apply torch patch: {e}")
+    print(f"Failed to apply torch patch: {e}")
 
 # Import Unsloth FIRST — must be before any transformers imports per Unsloth docs
 UNSLOTH_AVAILABLE = False
@@ -67,9 +60,9 @@ try:
     import unsloth
     from unsloth import FastLanguageModel
     UNSLOTH_AVAILABLE = True
-    print("✅ Unsloth available and loaded")
+    print("Unsloth available and loaded")
 except Exception as e:
-    print(f"⚠️  Unsloth not available: {e}")
+    print(f"Unsloth not available: {e}")
 # ------------------------------
 
 import json
@@ -84,9 +77,9 @@ DATASET_PATH = "training-data.jsonl"
 # Check AMD ROCm
 def check_amd_rocm():
     if os.path.exists("/dev/kfd"):
-        print("✅ AMD ROCm detected")
+        print("AMD ROCm detected")
         return True
-    print("⚠️  ROCm not detected, will use CUDA if available")
+    print("ROCm not detected, will use CUDA if available")
     return False
 
 is_rocm = check_amd_rocm()
@@ -108,8 +101,8 @@ def _check_transformers_works():
 
 if is_rocm:
     if not _check_transformers_works():
-        print("⚠️  ROCm environment has a known incompatibility in 'transformers' (grouped_mm_fallback)")
-        print("   Attempting to use Unsloth as a mandatory workaround...")
+        print("ROCm environment has a known incompatibility in 'transformers' (grouped_mm_fallback)")
+        print("Attempting to use Unsloth as a mandatory workaround...")
 
 # LoRA configuration
 LORA_CONFIG = {
@@ -139,7 +132,7 @@ TRAINING_ARGS = {
 
 def load_and_prepare_dataset(dataset_path: str):
     """Load and prepare the dataset for training."""
-    print(f"📂 Loading dataset from {dataset_path}")
+    print(f"Loading dataset from {dataset_path}")
 
     with open(dataset_path, 'r', encoding='utf-8') as f:
         lines = f.readlines()
@@ -159,18 +152,18 @@ def load_and_prepare_dataset(dataset_path: str):
         training_examples.append({"text": text})
 
     dataset = Dataset.from_list(training_examples)
-    print(f"✅ Loaded {len(dataset)} training examples")
+    print(f"Loaded {len(dataset)} training examples")
     return dataset
 
 def load_model():
     """Load Qwen3-8B with QLoRA configuration."""
-    print(f"\n🔄 Loading model: {MODEL_NAME}")
+    print(f"\nLoading model: {MODEL_NAME}")
 
     if _ROCM_BROKEN_TRANSFORMERS and not UNSLOTH_AVAILABLE:
-        print("\n❌ ERROR: Your environment has a broken Transformers/Torch integration on ROCm.")
-        print("   The 'grouped_mm_fallback' custom op is failing due to type hint issues.")
-        print("\n🛠️  HOW TO FIX:")
-        print("   1. Install Unsloth (Recommended): pip install \"unsloth[rocm] @ git+https://github.com/unslothai/unsloth.git\"")
+        print("\nERROR: Your environment has a broken Transformers/Torch integration on ROCm.")
+        print("The 'grouped_mm_fallback' custom op is failing due to type hint issues.")
+        print("\nHOW TO FIX:")
+        print("1. Install Unsloth (Recommended): pip install \"unsloth[rocm] @ git+https://github.com/unslothai/unsloth.git\"")
         raise RuntimeError("Incompatible environment for fine-tuning on ROCm.")
 
     # Native BF16 for AMD Instinct
@@ -186,10 +179,10 @@ def load_model():
                 trust_remote_code=True,
             )
             model = FastLanguageModel.get_peft_model(model, **LORA_CONFIG)
-            print(f"✅ Model loaded with Unsloth optimizations ({dtype})")
+            print(f"Model loaded with Unsloth optimizations ({dtype})")
             return model, tokenizer
         except Exception as e:
-            print(f"⚠️  Unsloth loading failed: {e}. Falling back to standard transformers...")
+            print(f"Unsloth loading failed: {e}. Falling back to standard transformers...")
 
     # Standard transformers path
     from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -216,7 +209,7 @@ def load_model():
     )
 
     model = get_peft_model(model, peft_config)
-    print("✅ Model loaded with standard PEFT")
+    print("Model loaded with standard PEFT")
     model.print_trainable_parameters()
 
     return model, tokenizer
@@ -224,7 +217,7 @@ def load_model():
 
 def train_model(model, tokenizer, dataset):
     """Train the model."""
-    print("\n🚀 Starting training...")
+    print("\nStarting training...")
 
     if UNSLOTH_AVAILABLE:
         from unsloth import UnslothTrainer, UnslothTrainingArguments
@@ -261,21 +254,21 @@ def train_model(model, tokenizer, dataset):
             args=sft_config,
         )
 
-    print("   Training started (this may take 1-2 hours on MI300X)...")
+    print("Training started (this may take 1-2 hours on MI300X)...")
     trainer.train()
 
     return trainer
 
 def save_model(model, tokenizer):
     """Save the fine-tuned model."""
-    print(f"\n💾 Saving model to {OUTPUT_DIR}")
+    print(f"\nSaving model to {OUTPUT_DIR}")
 
     Path(OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
 
     model.save_pretrained(OUTPUT_DIR)
     tokenizer.save_pretrained(OUTPUT_DIR)
 
-    print("✅ Model saved successfully!")
+    print("Model saved successfully!")
 
 def main():
     """Main fine-tuning pipeline."""
@@ -285,7 +278,7 @@ def main():
 
     dataset_path = Path(DATASET_PATH)
     if not dataset_path.exists():
-        print(f"\n❌ Dataset not found at {DATASET_PATH}")
+        print(f"\nDataset not found at {DATASET_PATH}")
         sys.exit(1)
 
     dataset = load_and_prepare_dataset(DATASET_PATH)
@@ -297,7 +290,7 @@ def main():
     save_model(model, tokenizer)
 
     print("\n" + "="*60)
-    print("✅ Fine-tuning complete!")
+    print("Fine-tuning complete!")
     print("="*60)
 
 if __name__ == "__main__":

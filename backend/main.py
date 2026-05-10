@@ -65,7 +65,7 @@ try:
     TRANSFORMERS_AVAILABLE = True
 except ImportError as e:
     TRANSFORMERS_AVAILABLE = False
-    print(f"⚠️  Transformers not available: {e}")
+    print(f"Transformers not available: {e}")
 
 # Try to import sentence-transformers
 try:
@@ -73,7 +73,7 @@ try:
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
-    print("⚠️  SentenceTransformers not installed. Run: pip install sentence-transformers")
+    print("SentenceTransformers not installed. Run: pip install sentence-transformers")
 
 # ============== Pydantic Models ==============
 
@@ -140,7 +140,7 @@ async def lifespan(app: FastAPI):
     """Initialize models on startup."""
     global model, tokenizer, vector_db, embedding_model
 
-    print("🔄 Initializing ADR Validator API...")
+    print("Initializing ADR Validator API...")
 
     # Initialize Qdrant
     qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
@@ -155,9 +155,9 @@ async def lifespan(app: FastAPI):
 
         # Test connection
         vector_db.get_collections()
-        print(f"✅ Connected to Qdrant at {qdrant_url}")
+        print(f"Connected to Qdrant at {qdrant_url}")
     except Exception as e:
-        print(f"⚠️  Qdrant not connected: {e}")
+        print(f"Qdrant not connected: {e}")
         vector_db = None
 
     # Initialize embedding model
@@ -165,15 +165,15 @@ async def lifespan(app: FastAPI):
         try:
             from sentence_transformers import SentenceTransformer
             embedding_model = SentenceTransformer("Qwen/Qwen3-Embedding-8B")
-            print("✅ Loaded Qwen3-Embedding-8B embeddings")
+            print("Loaded Qwen3-Embedding-8B embeddings")
         except Exception as e:
-            print(f"⚠️  Could not load embedding model: {e}")
-            print("ℹ️  Semantic search will use mock vectors on this hardware")
+            print(f"Could not load embedding model: {e}")
+            print("Semantic search will use mock vectors on this hardware")
 
     # Initialize LLM (if available)
     if TRANSFORMERS_AVAILABLE:
         try:
-            print(f"🔄 Loading base model in native BF16...")
+            print(f"Loading base model in native BF16...")
 
             base_model = "Qwen/Qwen3-8B"
             model = AutoModelForCausalLM.from_pretrained(
@@ -185,21 +185,21 @@ async def lifespan(app: FastAPI):
             tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
 
             if adapter_path:
-                print(f"🔄 Loading fine-tuned adapter from {adapter_path}...")
+                print(f"Loading fine-tuned adapter from {adapter_path}...")
                 model = PeftModel.from_pretrained(model, adapter_path)
-                print("✅ Adapter loaded successfully")
+                print("Adapter loaded successfully")
             else:
-                print(f"ℹ️  No fine-tuned adapter found. Using base model.")
+                print(f"No fine-tuned adapter found at {adapter_path}. Using base model.")
 
-            print("✅ Model ready")
+            print("Model ready")
         except Exception as e:
-            print(f"⚠️  Could not load model: {e}")
+            print(f"Could not load model: {e}")
             model = None
             tokenizer = None
     else:
-        print("ℹ️  Transformers not available. Using rule-based validation.")
+        print("Transformers not available. Using rule-based validation.")
 
-    print("🚀 ADR Validator API ready!")
+    print("ADR Validator API ready!")
     yield
 
 # ============== FastAPI App ==============
@@ -411,7 +411,7 @@ async def validate_adr(request: ADRValidationRequest):
                 if len(related_adrs) >= 5: break
                 
         except Exception as e:
-            print(f"⚠️  Qdrant search error: {e}")
+            print(f"Qdrant search error: {e}")
 
     # Detect technologies
     technologies = detect_technologies(request.content)
@@ -451,10 +451,10 @@ Related ADRs:
             else:
                 model_critique = full_response.strip()
             
-            print(f"🤖 Model response received")
+            print(f"Model response received")
 
         except Exception as e:
-            print(f"⚠️  Model inference error: {e}")
+            print(f"Model inference error: {e}")
 
     # Detect contradictions
     contradictions = detect_contradictions(request.title, request.content, related_adrs)

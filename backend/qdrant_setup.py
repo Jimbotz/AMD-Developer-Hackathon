@@ -11,7 +11,7 @@ from pathlib import Path
 # --- ROCM COMPATIBILITY PATCHES (Python 3.12 + Torch 2.5) ---
 import torch
 
-# 1. Mock missing integer types expected by torchao/transformers
+# 1. Mock missing integer types
 for i in range(1, 9):
     attr = f"int{i}"
     if not hasattr(torch, attr):
@@ -34,7 +34,7 @@ try:
                 return "transformers::grouped_mm_fallback(Tensor input, Tensor weight, Tensor offs) -> Tensor"
             raise e
     torch._library.infer_schema.infer_schema = _patched
-    print("🛠️  ROCm + Python 3.12 compatibility patches applied")
+    print("ROCm + Python 3.12 compatibility patches applied")
 except:
     pass
 
@@ -55,7 +55,7 @@ def create_collection(client: QdrantClient):
     """Create Qdrant collection for ADRs."""
     try:
         client.delete_collection(collection_name=COLLECTION_NAME)
-        print(f"🗑️  Deleted existing collection '{COLLECTION_NAME}'")
+        print(f"Deleted existing collection '{COLLECTION_NAME}'")
     except:
         pass
 
@@ -63,7 +63,7 @@ def create_collection(client: QdrantClient):
         collection_name=COLLECTION_NAME,
         vectors_config=VectorParams(size=VECTOR_SIZE, distance=Distance.COSINE),
     )
-    print(f"✅ Created collection '{COLLECTION_NAME}' with {VECTOR_SIZE}D vectors")
+    print(f"Created collection '{COLLECTION_NAME}' with {VECTOR_SIZE}D vectors")
     return True
 
 def extract_adrs_from_files(base_path: Path):
@@ -92,7 +92,7 @@ def index_adrs(client: QdrantClient, adrs: list, use_embedded_model: bool = Fals
     """Index ADRs into Qdrant."""
     embedding_model = None
     if use_embedded_model:
-        print("📦 Initializing semantic embedding model (Qwen3-Embedding-8B)...")
+        print("Initializing semantic embedding model (Qwen3-Embedding-8B)...")
         try:
             from transformers import AutoModel, AutoTokenizer
             tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-Embedding-8B", trust_remote_code=True)
@@ -113,14 +113,14 @@ def index_adrs(client: QdrantClient, adrs: list, use_embedded_model: bool = Fals
                     inputs = self.tokenizer(sentences, padding=True, truncation=True, return_tensors="pt", max_length=2048).to(self.model.device)
                     with torch.no_grad():
                         out = self.model(**inputs)
-                    # Convert to float32 immediately to avoid NumPy/Qdrant compatibility issues
+                    # Convert to float32 immediately
                     return out.last_hidden_state.mean(dim=1).to(torch.float32).cpu().numpy()
             
             embedding_model = SimpleEmbedder(model, tokenizer)
-            print("✅ Semantic model loaded successfully!")
+            print("Semantic model loaded successfully!")
         except Exception as e:
-            print(f"⚠️  Could not load semantic model: {e}")
-            print("📦 Falling back to mock embeddings")
+            print(f"Could not load semantic model: {e}")
+            print("Falling back to mock embeddings")
 
     points = []
     for i, adr in enumerate(adrs):
@@ -148,21 +148,21 @@ def index_adrs(client: QdrantClient, adrs: list, use_embedded_model: bool = Fals
     if points:
         client.upsert(collection_name=COLLECTION_NAME, points=points)
     
-    print(f"\n✅ Finished indexing {len(adrs)} ADRs")
+    print(f"Finished indexing {len(adrs)} ADRs")
 
 def setup_qdrant(use_embeddings: bool = False):
-    print("🚀 Setting up Qdrant Vector DB\n")
+    print("Setting up Qdrant Vector DB\n")
     client = QdrantClient(url=os.getenv("QDRANT_URL", "http://localhost:6333"))
     
     try:
         client.get_collections()
         create_collection(client)
         adrs = extract_adrs_from_files(Path(__file__).parent.parent)
-        print(f"📂 Found {len(adrs)} documents")
+        print(f"Found {len(adrs)} documents")
         index_adrs(client, adrs, use_embedded_model=use_embeddings)
         return client
     except Exception as e:
-        print(f"❌ Setup failed: {e}")
+        print(f"Setup failed: {e}")
         return None
 
 if __name__ == "__main__":
