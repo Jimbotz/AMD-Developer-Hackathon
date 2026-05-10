@@ -4,8 +4,10 @@ pydantic>=2.5.0
 qdrant-client>=1.7.0
 sentence-transformers>=2.2.0
 torch>=2.4.0
-transformers>=4.48.0
+transformers>=4.51.0
 peft>=0.7.0
 unsloth[rocm] @ git+https://github.com/unslothai/unsloth.git
 unsloth_zoo
 scipy>=1.11.0
+einops
+accelerate

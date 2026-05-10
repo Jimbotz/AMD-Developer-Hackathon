@@ -6,27 +6,37 @@ Creates collection, indexes documents, and provides search functionality.
 import json
 import os
 import uuid
+import sys
 from pathlib import Path
 
-# --- GLOBAL ROCM WORKAROUND ---
+# --- GLOBAL ROCM & PY3.12 WORKAROUND ---
 # This must run before ANY transformers/torch imports
 import typing
-from typing import Union, List, Optional, Sequence
 import torch
 
-# Force registration of types that cause the grouped_mm_fallback bug on ROCm
-if not hasattr(typing, 'Union'):
-    typing.Union = Union
-if not hasattr(typing, 'List'):
-    typing.List = List
-
-# Some ROCm builds of torch 2.4/2.5 have a bug where they don't recognize 
-# their own Tensor type in custom_op type hints.
+# Patch the specific bug in Torch 2.4/2.5 + Python 3.12 type hint registration
+# which causes the "unsupported type torch.Tensor" error on ROCm.
 try:
-    import torch._custom_op
     import torch._library.infer_schema
-except:
+    _original_infer_schema = torch._library.infer_schema.infer_schema
+
+    def _patched_infer_schema(fn, mutates_args, error_fn=None):
+        try:
+            return _original_infer_schema(fn, mutates_args, error_fn)
+        except ValueError as e:
+            if "unsupported type torch.Tensor" in str(e):
+                # Hardcoded schema for the problematic transformers grouped_mm_fallback
+                if "grouped_mm_fallback" in str(fn):
+                    return "transformers::grouped_mm_fallback(Tensor input, Tensor weight, Tensor offs) -> Tensor"
+            raise e
+
+    torch._library.infer_schema.infer_schema = _patched_infer_schema
+    print("🛠️  Applied Torch type-hint patch for ROCm + Python 3.12")
+except Exception as e:
     pass
+
+# Ensure standard types are available for dynamic imports
+from typing import Union, List, Optional, Sequence
 # ------------------------------
 
 from qdrant_client import QdrantClient
@@ -166,11 +176,15 @@ def index_adrs(client: QdrantClient, adrs: list, use_embedded_model: bool = Fals
             from transformers import AutoModel, AutoTokenizer
             print("🔄 Loading Qwen3-Embedding-8B via Transformers (Native + ROCm Fix)...")
             
+            # Upgrade check
+            import transformers
+            print(f"   Transformers version: {transformers.__version__}")
+
             tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-Embedding-8B", trust_remote_code=True)
             model = AutoModel.from_pretrained(
                 "Qwen/Qwen3-Embedding-8B", 
                 trust_remote_code=True, 
-                dtype=torch.bfloat16,
+                torch_dtype=torch.bfloat16,
                 device_map="auto",
                 attn_implementation="eager" 
             )
@@ -240,7 +254,7 @@ def search_adrs(client: QdrantClient, query: str, category: str = None,
             model = AutoModel.from_pretrained(
                 "Qwen/Qwen3-Embedding-8B", 
                 trust_remote_code=True, 
-                dtype=torch.bfloat16,
+                torch_dtype=torch.bfloat16,
                 device_map="auto",
                 attn_implementation="eager"
             )
