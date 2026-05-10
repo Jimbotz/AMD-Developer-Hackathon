@@ -370,16 +370,27 @@ async def validate_adr(request: ADRValidationRequest):
                 random.seed(hash_val % (2**32))
                 vector = [random.random() for _ in range(4096)]
 
-            # Force dimension check
-            results = vector_db.search(
-                collection_name="adrs",
-                query_vector=vector,
-                limit=5,
-                with_payload=True
-            )
-
+            # Modern Qdrant 1.7+ API with fallback
+            try:
+                # Use query_points for newer versions
+                query_response = vector_db.query_points(
+                    collection_name="adrs",
+                    query=vector,
+                    limit=5,
+                    with_payload=True
+                )
+                results = query_response.points
+            except (AttributeError, Exception):
+                # Fallback to legacy search method
+                results = vector_db.search(
+                    collection_name="adrs",
+                    query_vector=vector,
+                    limit=5,
+                    with_payload=True
+                )
 
             for r in results:
+
                 related_adrs.append(RelatedADR(
                     title=r.payload.get("title", ""),
                     similarity=float(r.score),
