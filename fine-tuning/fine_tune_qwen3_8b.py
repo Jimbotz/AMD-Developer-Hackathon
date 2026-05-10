@@ -1,6 +1,6 @@
 """
-Fine-tuning Script for Qwen3-8B - STABLE VERSION
-Optimized for AMD MI300X - Force FP16 to avoid NaNs
+Fine-tuning Script for Qwen3-8B - PERFORMANCE VERSION
+Optimized for AMD MI300X - BF16 Native
 """
 
 import os
@@ -69,21 +69,21 @@ LORA_CONFIG = {
     "bias": "none",
 }
 
-# STABLE TRAINING ARGS FOR ROCM
+# PERFORMANCE TRAINING ARGS
 TRAINING_ARGS = {
     "num_train_epochs": 3,
-    "per_device_train_batch_size": 2,
-    "gradient_accumulation_steps": 8,
-    "warmup_ratio": 0.1,
+    "per_device_train_batch_size": 4,
+    "gradient_accumulation_steps": 4,
+    "warmup_steps": 50,                # Warmup rápido de 50 pasos
     "logging_steps": 5,
     "save_steps": 50,
-    "learning_rate": 1e-5, # Ultra stable LR
+    "learning_rate": 5e-5,             # LR equilibrada (antes era demasiado baja)
     "weight_decay": 0.01,
     "optim": "adamw_torch",
-    "lr_scheduler_type": "linear",
+    "lr_scheduler_type": "cosine",
     "seed": 42,
     "output_dir": OUTPUT_DIR,
-    "max_grad_norm": 0.5,
+    "max_grad_norm": 1.0,
 }
 
 def load_and_prepare_dataset(dataset_path: str):
@@ -93,7 +93,7 @@ def load_and_prepare_dataset(dataset_path: str):
     return Dataset.from_list(training_examples)
 
 def load_model():
-    dtype = torch.float16 # FORCE FP16 FOR STABILITY
+    dtype = torch.bfloat16 if is_rocm else torch.float16 # BACK TO BF16
     
     if UNSLOTH_AVAILABLE:
         try:
@@ -121,10 +121,10 @@ def load_model():
 def train_model(model, tokenizer, dataset):
     if UNSLOTH_AVAILABLE:
         from unsloth import UnslothTrainer, UnslothTrainingArguments
-        trainer = UnslothTrainer(model=model, tokenizer=tokenizer, train_dataset=dataset, args=UnslothTrainingArguments(**TRAINING_ARGS, bf16=False, fp16=True, report_to="none"))
+        trainer = UnslothTrainer(model=model, tokenizer=tokenizer, train_dataset=dataset, args=UnslothTrainingArguments(**TRAINING_ARGS, bf16=True, fp16=False, report_to="none"))
     else:
         from trl import SFTTrainer, SFTConfig
-        trainer = SFTTrainer(model=model, train_dataset=dataset, processing_class=tokenizer, args=SFTConfig(**TRAINING_ARGS, bf16=False, fp16=True, report_to="none", remove_unused_columns=False, dataset_text_field="text"))
+        trainer = SFTTrainer(model=model, train_dataset=dataset, processing_class=tokenizer, args=SFTConfig(**TRAINING_ARGS, bf16=True, fp16=False, report_to="none", remove_unused_columns=False, dataset_text_field="text"))
     trainer.train()
     return trainer
 
