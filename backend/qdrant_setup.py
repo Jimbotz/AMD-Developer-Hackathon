@@ -144,53 +144,49 @@ def index_adrs(client: QdrantClient, adrs: list, use_embedded_model: bool = Fals
     if use_embedded_model:
         print("📦 Initializing embedding model...")
         
-        # Check if we are on ROCm to use Unsloth optimization
-        is_rocm = os.path.exists("/dev/kfd")
-        
-        if is_rocm:
-            try:
-                print("🚀 Using Unsloth for ROCm optimized embedding loading...")
-                from unsloth import FastLanguageModel
-                import torch
-                
-                # Qwen3-Embedding-8B uses the same architecture as Qwen3-8B
-                model, tokenizer = FastLanguageModel.from_pretrained(
-                    model_name="Qwen/Qwen3-Embedding-8B",
-                    max_seq_length=2048,
-                    load_in_4bit=True, # Use 4-bit to save memory on embedding loading
-                    dtype=torch.bfloat16,
-                    trust_remote_code=True,
-                )
-                
-                class UnslothEmbedder:
-                    def __init__(self, model, tokenizer):
-                        self.model = model
-                        self.tokenizer = tokenizer
-                    def encode(self, sentences):
-                        if isinstance(sentences, str):
-                            sentences = [sentences]
-                        inputs = self.tokenizer(sentences, padding=True, truncation=True, return_tensors="pt").to(self.model.device)
-                        with torch.no_grad():
-                            outputs = self.model.model(**inputs, output_hidden_states=True)
-                        # Qwen3-Embedding uses the last hidden state of the last token or mean pooling
-                        return outputs.hidden_states[-1].mean(dim=1).cpu().numpy()
-                
-                embedding_model = UnslothEmbedder(model, tokenizer)
-                print("✅ Loaded Qwen3-Embedding-8B via Unsloth (ROCm Optimized)")
-            except Exception as e:
-                print(f"⚠️  Unsloth embedding loading failed: {e}")
-                print("🔄 Falling back to standard methods...")
+        # Aggressive workaround for ROCm type registration bug
+        try:
+            import typing
+            from typing import Union, List, Optional, Sequence
+            import torch
+            # Pre-register types in global namespace to avoid registration errors
+            globals()['torch'] = torch
+            globals()['Tensor'] = torch.Tensor
+        except:
+            pass
 
-        if not embedding_model:
-            try:
-                # Standard fallback path
-                import torch
-                from sentence_transformers import SentenceTransformer
-                embedding_model = SentenceTransformer("Qwen/Qwen3-Embedding-8B")
-                print("✅ Loaded Qwen3-Embedding-8B via SentenceTransformers")
-            except Exception as e:
-                print(f"⚠️  SentenceTransformers failed: {e}")
-                print("📦 Using mock embeddings (not semantic)")
+        # Try standard Transformers first (most reliable if architecture is supported)
+        try:
+            from transformers import AutoModel, AutoTokenizer
+            print("🔄 Loading Qwen3-Embedding-8B via Transformers (Native)...")
+            
+            tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-Embedding-8B", trust_remote_code=True)
+            model = AutoModel.from_pretrained(
+                "Qwen/Qwen3-Embedding-8B", 
+                trust_remote_code=True, 
+                torch_dtype=torch.bfloat16,
+                device_map="auto"
+            )
+            
+            class SimpleEmbedder:
+                def __init__(self, model, tokenizer):
+                    self.model = model
+                    self.tokenizer = tokenizer
+                def encode(self, sentences):
+                    if isinstance(sentences, str):
+                        sentences = [sentences]
+                    inputs = self.tokenizer(sentences, padding=True, truncation=True, return_tensors="pt", max_length=2048).to(self.model.device)
+                    with torch.no_grad():
+                        outputs = self.model(**inputs)
+                    # Use mean pooling of the last hidden state
+                    embeddings = outputs.last_hidden_state.mean(dim=1)
+                    return embeddings.cpu().numpy()
+            
+            embedding_model = SimpleEmbedder(model, tokenizer)
+            print("✅ Loaded Qwen3-Embedding-8B successfully")
+        except Exception as e:
+            print(f"⚠️  Transformers loading failed: {e}")
+            print("📦 Using mock embeddings (not semantic)")
 
     points = []
     for adr in adrs:
