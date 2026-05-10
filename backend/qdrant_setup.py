@@ -11,11 +11,21 @@ from pathlib import Path
 
 # --- GLOBAL ROCM & PY3.12 WORKAROUND ---
 # This must run before ANY transformers/torch imports
-import typing
 import torch
 
-# Patch the specific bug in Torch 2.4/2.5 + Python 3.12 type hint registration
-# which causes the "unsupported type torch.Tensor" error on ROCm.
+# 1. FIX: module 'torch' has no attribute 'int1'
+# This is a known bug where torchao (used by newer transformers) expects torch.int1, 
+# but many ROCm torch builds don't have it yet.
+if not hasattr(torch, "int1"):
+    # We mock int1 using int8 as a placeholder to prevent the AttributeError
+    # This is safe because we aren't actually using 1-bit quantization here.
+    torch.int1 = torch.int8
+    print("🛠️  Patched missing 'torch.int1' attribute")
+
+# 2. Disable torchao integration in transformers to avoid further issues
+os.environ["TRANSFORMERS_NO_TORCHAO"] = "1"
+
+# 3. Patch the specific bug in Torch 2.4/2.5 + Python 3.12 type hint registration
 try:
     import torch._library.infer_schema
     _original_infer_schema = torch._library.infer_schema.infer_schema
@@ -25,17 +35,16 @@ try:
             return _original_infer_schema(fn, mutates_args, error_fn)
         except ValueError as e:
             if "unsupported type torch.Tensor" in str(e):
-                # Hardcoded schema for the problematic transformers grouped_mm_fallback
                 if "grouped_mm_fallback" in str(fn):
                     return "transformers::grouped_mm_fallback(Tensor input, Tensor weight, Tensor offs) -> Tensor"
             raise e
 
     torch._library.infer_schema.infer_schema = _patched_infer_schema
     print("🛠️  Applied Torch type-hint patch for ROCm + Python 3.12")
-except Exception as e:
+except Exception:
     pass
 
-# Ensure standard types are available for dynamic imports
+import typing
 from typing import Union, List, Optional, Sequence
 # ------------------------------
 
@@ -176,7 +185,6 @@ def index_adrs(client: QdrantClient, adrs: list, use_embedded_model: bool = Fals
             from transformers import AutoModel, AutoTokenizer
             print("🔄 Loading Qwen3-Embedding-8B via Transformers (Native + ROCm Fix)...")
             
-            # Upgrade check
             import transformers
             print(f"   Transformers version: {transformers.__version__}")
 
