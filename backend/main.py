@@ -164,13 +164,20 @@ async def validate_adr(request: ADRValidationRequest):
 
     risks = detect_security_risks(request.title, request.content)
     
-    # Status Logic
-    has_issue = len(risks) > 0 or any(kw in model_critique.lower() for kw in ["risk", "vulnerability", "reject", "critical", "warning"])
+    # Status Logic - More sensitive to architectural concerns
+    model_lower = model_critique.lower()
+    critical_keywords = [
+        "risk", "vulnerability", "reject", "critical", "warning", 
+        "insecure", "race condition", "overselling", "inconsistency",
+        "trade-off", "oversell", "unacceptable", "flaw"
+    ]
+    
+    has_issue = len(risks) > 0 or any(kw in model_lower for kw in critical_keywords)
     status = "needs_review" if has_issue else "approved"
     
     return ADRValidationResponse(
         status=status,
-        message="Issues detected" if has_issue else "ADR appears sound",
+        message="Issues detected that require architectural review" if has_issue else "ADR appears sound",
         security_risks=risks,
         recommendations=[model_critique.strip()] if model_critique else [],
         related_adrs=related_adrs[:5]
