@@ -376,7 +376,7 @@ async def validate_adr(request: ADRValidationRequest):
                 import random
                 hash_val = int(hashlib.md5(query_text.encode()).hexdigest()[:8], 16)
                 random.seed(hash_val % (2**32))
-                vector = [random.random() for _ in range(1024)]
+                vector = [random.random() for _ in range(4096)]
 
             results = qdrant_client.search(
                 collection_name="adrs",
@@ -489,7 +489,7 @@ async def index_adr(title: str, content: str, status: str = "proposed",
             import hashlib, random
             hash_val = int(hashlib.md5(f"{title}{content}".encode()).hexdigest()[:8], 16)
             random.seed(hash_val % (2**32))
-            vector = [random.random() for _ in range(1024)]
+            vector = [random.random() for _ in range(4096)]
 
         from qdrant_client.models import PointStruct
 

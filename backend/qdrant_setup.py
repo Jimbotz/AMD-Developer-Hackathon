@@ -14,7 +14,7 @@ from qdrant_client.models import (
 )
 
 COLLECTION_NAME = "adrs"
-VECTOR_SIZE = 1024  # Qwen3-embed-8b embedding size
+VECTOR_SIZE = 4096  # Qwen3-Embedding-8B output size
 
 def create_collection(client: QdrantClient):
     """Create Qdrant collection for ADRs."""
