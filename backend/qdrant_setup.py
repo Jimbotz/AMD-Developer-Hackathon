@@ -206,7 +206,9 @@ def index_adrs(client: QdrantClient, adrs: list, use_embedded_model: bool = Fals
             embedding_model = SimpleEmbedder(model, tokenizer)
             print("✅ Loaded Qwen3-Embedding-8B successfully")
         except Exception as e:
+            import traceback
             print(f"⚠️  Transformers loading failed: {e}")
+            traceback.print_exc()
             print("📦 Using mock embeddings (not semantic)")
 
     points = []
