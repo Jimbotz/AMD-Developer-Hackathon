@@ -1,100 +1,95 @@
-# Guía de Despliegue en AMD Developer Cloud - ADR Security Validator
+# Guía Avanzada de Despliegue en AMD Developer Cloud - ADR Security Validator
 
-Esta guía detalla los pasos necesarios para desplegar y ejecutar el sistema de validación de ADRs en la infraestructura de AMD, aprovechando los aceleradores Instinct (MI300X, MI210, etc.) y el ecosistema ROCm.
+Esta guía contiene los pasos actualizados y las lecciones aprendidas para desplegar con éxito el proyecto en instancias **AMD Instinct™ (MI300X/MI210)** con **ROCm 6.2+** y **Python 3.12**.
 
-> **TIP**: También puedes seguir esta guía de forma interactiva usando el notebook `amd_deployment_guide.ipynb` incluido en el repositorio.
+---
 
-## 1. Selección de Hardware y Gráfica
+## 1. Configuración de Jupyter Server
+Si deseas usar el notebook interactivo (`amd_deployment_guide.ipynb`), sigue estos pasos para iniciar el servidor de forma segura:
 
-Para este proyecto (Qwen3-8B + Qdrant + Fine-tuning), recomendamos la siguiente selección en el panel de AMD Developer Cloud:
-
-### Opción Recomendada (Fine-tuning + Inferencia)
-- **Instancia**: Instancia con **1x AMD Instinct™ MI300X** (o MI250).
-- **VRAM**: 192 GB HBM3.
-- **Razón**: El entrenamiento (Fine-tuning) con LoRA/QLoRA es extremadamente rápido en esta tarjeta y permite manejar el contexto completo de 8B parámetros sin degradación de velocidad.
-
-### Opción Económica (Solo Inferencia)
-- **Instancia**: Instancia con **1x AMD Instinct™ MI210**.
-- **VRAM**: 64 GB HBM2e.
-- **Razón**: Suficiente para ejecutar el modelo base o el modelo con adaptadores cargados en 4-bit/8-bit para validación en tiempo real.
-
-## 2. Configuración de la Instancia
-
-Una vez lanzada la instancia:
-1. Conéctate vía SSH.
-2. Asegúrate de tener **ROCm** instalado (normalmente pre-configurado en las imágenes de AMD). Verifica con:
+1. **Iniciar Jupyter**:
    ```bash
-   rocm-smi
+   jupyter notebook --ip 0.0.0.0 --port 8888 --no-browser --allow-root
    ```
+2. **Acceso**: Copia el token que aparece en la terminal y accede desde tu navegador local usando la IP de tu instancia: `http://<IP_INSTANCIA>:8888/?token=<tu_token>`.
 
-## 3. Instalación del Entorno (Paso a Paso)
+---
 
-### A. Clonar y preparar entorno virtual
+## 2. Gestión de Contenedores (Qdrant)
+Para evitar conflictos de puertos y asegurar la persistencia de los datos, usamos **Docker Compose**.
+
+### Limpieza de contenedores antiguos:
+Si tienes un contenedor de Qdrant corriendo fuera de compose, bórralo:
 ```bash
-git clone <tu-repositorio>
-cd adr-validator-hackathon
-python3 -m venv venv
-source venv/bin/activate
+# Detener y borrar por ID o nombre (ej: goofy_keller)
+docker ps -q --filter ancestor=qdrant/qdrant | xargs -r docker stop
+docker ps -a -q --filter ancestor=qdrant/qdrant | xargs -r docker rm
 ```
 
-### B. Instalar PyTorch optimizado para ROCm
-No uses la instalación estándar. Instala la versión compilada para los aceleradores AMD:
+### Iniciar con Docker Compose:
 ```bash
-# Para ROCm 6.2 (Ajustar según la versión reportada por rocm-smi)
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2
+docker compose up -d
+```
+*Los datos se guardarán en `./qdrant_storage` para persistir entre reinicios.*
+
+---
+
+## 3. Preparación del Entorno (Fix para ROCm + Python 3.12)
+Existen incompatibilidades conocidas entre las versiones más recientes de `transformers` y los drivers de ROCm en Python 3.12. Sigue este orden exacto:
+
+### A. Limpieza de librerías conflictivas:
+```bash
+source /root/hackathon_env/bin/activate
+pip uninstall -y transformers torchao unsloth
 ```
 
-### C. Instalar dependencias del proyecto
+### B. Instalación de Versiones Estables:
+Instalamos la "versión dorada" (4.51.0) que soporta Qwen3 sin los bugs de tipos de tensores:
 ```bash
-pip install -r backend/requirements.txt
-pip install transformers peft sentence-transformers accelerate
-# Unsloth para AMD/ROCm
-pip install "unsloth[rocm] @ git+https://github.com/unslothai/unsloth.git"
+pip install "transformers==4.51.0" accelerate einops "sentence-transformers>=2.7.0" trl
 ```
 
-## 4. Despliegue de Servicios
+---
 
-### Paso 1: Levantar base de datos vectorial (Qdrant)
-Ejecuta Qdrant usando Docker para el almacenamiento de los ADRs históricos:
+## 4. Autenticación en Hugging Face
+Para evitar límites de descarga y mensajes de advertencia, usa la nueva herramienta `hf`:
+
 ```bash
-docker run -d -p 6333:6333 -p 6334:6334 qdrant/qdrant
+# Iniciar sesión con tu token (Gratis en huggingface.co/settings/tokens)
+hf auth login --token "tu_token_aqui"
 ```
 
-### Paso 2: Indexación de datos
-Antes de validar, debemos procesar los ADRs de Kubernetes, Django y Rust:
-```bash
-cd backend
-python qdrant_setup.py --embed
+---
+
+## 5. Solución de Errores Comunes (Workarounds)
+
+### Error: `AttributeError: module 'torch' has no attribute 'int1'`
+Este error ocurre porque `torchao` busca funciones que no están en el PyTorch de ROCm. El proyecto ya incluye un parche automático en `backend/main.py` y `backend/qdrant_setup.py`.
+
+### Error: `TypeError: infer_schema() takes 1 positional argument but 3 were given`
+Corregido mediante un parche de bajo nivel en el código que intercepta las llamadas de `transformers` y registra correctamente las operaciones en la GPU AMD.
+
+---
+
+## 6. Verificación del Sistema
+Una vez que el servidor esté corriendo (`uvicorn main:app --host 0.0.0.0 --port 8000`), puedes verificar que todo funciona con este script de prueba:
+
+```python
+import requests, json
+
+url = "http://localhost:8000/validate-adr"
+payload = {
+    "title": "Prueba de Almacenes WMS",
+    "content": "Usaremos MongoDB para el inventario y guardaremos el password en config.py.",
+}
+response = requests.post(url, json=payload)
+print(json.dumps(response.json(), indent=2))
 ```
-*Nota: Esto descargará `Qwen3-embed-8b` para generar los vectores de alta fidelidad.*
 
-### Paso 3: Fine-tuning (Opcional pero Recomendado)
-Si deseas que el modelo aprenda específicamente tus reglas de seguridad y contradicciones:
-```bash
-cd ../fine-tuning
-python fine_tune_qwen3_8b.py
-```
-*El resultado se guardará en `../models/qwen-adr-lora`.*
-
-### Paso 4: Iniciar la API Backend
-Lanza el servidor FastAPI para recibir peticiones desde Obsidian o cURL:
-```bash
-cd ../backend
-uvicorn main:app --host 0.0.0.0 --port 8000
-```
-
-## 5. Acceso Externo (Obsidian)
-
-Para conectar tu plugin de Obsidian local con la nube de AMD:
-1. **IP Pública**: Obtén la IP de tu instancia en el panel de AMD.
-2. **Puerto**: Asegúrate de que el puerto `8000` esté abierto en las reglas de red (Security Groups) de la consola de AMD.
-3. **Configuración**: En el plugin de Obsidian, cambia `localhost:8000` por `http://<IP_DE_AMD>:8000`.
-
-## 6. Monitoreo de Recursos
-Mientras el sistema esté corriendo, puedes monitorear el uso de la GPU (VRAM y Compute) con:
-```bash
-watch -n 1 rocm-smi
-```
+### ¿Qué buscar en la respuesta?
+1. **`AI Analysis`**: Debe aparecer en las recomendaciones (confirmación de que el Fine-tuning funciona).
+2. **`related_adrs`**: Debe mostrar ADRs reales (confirmación de que Qdrant está conectado).
+3. **`status`**: Debe ser `needs_review`.
 
 ---
 **Desarrollado para el AMD ROCm Hackathon 2026**
