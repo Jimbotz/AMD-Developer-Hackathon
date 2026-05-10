@@ -189,7 +189,7 @@ async def lifespan(app: FastAPI):
                 model = PeftModel.from_pretrained(model, adapter_path)
                 print("✅ Adapter loaded successfully")
             else:
-                print("ℹ️  No fine-tuned adapter found. Using base model.")
+                print(f"ℹ️  No fine-tuned adapter found at {adapter_path}. Using base model.")
 
             print("✅ Model ready")
         except Exception as e:
@@ -395,6 +395,7 @@ async def validate_adr(request: ADRValidationRequest):
     risks = detect_security_risks(request.title, request.content)
 
     # If model is available, use it for enhanced analysis
+    model_critique = ""
     if model and tokenizer:
         try:
             context_parts = [f"Related ADR: {adr.title} ({adr.status})" for adr in related_adrs[:3]]
