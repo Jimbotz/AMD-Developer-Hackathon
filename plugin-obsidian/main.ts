@@ -60,7 +60,18 @@ export default class ADRValidatorPlugin extends Plugin {
     }
 
     async saveSettings() {
+        // Sanitize endpoint URL (remove trailing slash)
+        if (this.settings.apiEndpoint.endsWith('/')) {
+            this.settings.apiEndpoint = this.settings.apiEndpoint.slice(0, -1);
+        }
+        
         await this.saveData(this.settings);
+        
+        // Update API client with new settings
+        this.apiClient = new ADRAPIClient(
+            this.settings.apiEndpoint,
+            this.settings.apiKey
+        );
     }
 
     private debouncedValidate = (content: string) => {
