@@ -8,8 +8,50 @@ import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import List, Optional
 from contextlib import asynccontextmanager
+
+# --- GLOBAL ROCM & PY3.12 WORKAROUND ---
+# This must run before ANY transformers/torch imports
+import torch
+
+# 1. FIX: module 'torch' has no attribute 'int1'
+for _int_type in range(1, 9):
+    _attr = f"int{_int_type}"
+    if not hasattr(torch, _attr):
+        setattr(torch, _attr, torch.int8)
+
+# 2. FIX: torch.utils._pytree has no attribute 'register_constant'
+import torch.utils._pytree
+if not hasattr(torch.utils._pytree, "register_constant"):
+    def _mock_register_constant(cls):
+        return cls
+    torch.utils._pytree.register_constant = _mock_register_constant
+
+# 3. Disable torchao integration in transformers
+os.environ["TRANSFORMERS_NO_TORCHAO"] = "1"
+
+# 4. Patch the specific bug in Torch 2.4/2.5 + Python 3.12 type hint registration
+try:
+    import torch._library.infer_schema
+    _original_infer_schema = torch._library.infer_schema.infer_schema
+
+    def _patched_infer_schema(*args, **kwargs):
+        try:
+            return _original_infer_schema(*args, **kwargs)
+        except ValueError as e:
+            if "unsupported type torch.Tensor" in str(e):
+                fn = args[0] if args else kwargs.get('fn')
+                if fn and "grouped_mm_fallback" in str(fn):
+                    return "transformers::grouped_mm_fallback(Tensor input, Tensor weight, Tensor offs) -> Tensor"
+            raise e
+
+    torch._library.infer_schema.infer_schema = _patched_infer_schema
+except Exception:
+    pass
+
+import typing
+from typing import Union, List, Optional, Sequence
+# ------------------------------
 
 from qdrant_client import QdrantClient
 import json
