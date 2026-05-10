@@ -142,17 +142,44 @@ def index_adrs(client: QdrantClient, adrs: list, use_embedded_model: bool = Fals
     """Index ADRs into Qdrant collection."""
     embedding_model = None
     if use_embedded_model:
+        print("📦 Initializing embedding model...")
         try:
-            # Workaround for Python 3.12 + Transformers 4.45+ type hint bug on ROCm
+            # Aggressive workaround for Python 3.12 + Transformers 4.45+ type hint bug on ROCm
+            import typing
             from typing import Union, List, Optional, Sequence
             import torch
-            from sentence_transformers import SentenceTransformer
             
+            # Force registration of common types in the global namespace
+            globals()['torch'] = torch
+            globals()['Tensor'] = torch.Tensor
+            
+            from sentence_transformers import SentenceTransformer
             embedding_model = SentenceTransformer("Qwen/Qwen3-embed-8b")
-            print("📦 Using Qwen3-embed-8b for embeddings")
+            print("✅ Loaded Qwen3-embed-8b via SentenceTransformers")
         except Exception as e:
-            print(f"⚠️  Could not load Qwen3-embed-8b: {e}")
-            print("📦 Using mock embeddings (not semantic)")
+            print(f"⚠️  SentenceTransformers failed: {e}")
+            print("🔄 Attempting fallback to standard transformers...")
+            try:
+                from transformers import AutoModel, AutoTokenizer
+                tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-embed-8b", trust_remote_code=True)
+                model = AutoModel.from_pretrained("Qwen/Qwen3-embed-8b", trust_remote_code=True, device_map="auto")
+                
+                class FallbackEmbedder:
+                    def __init__(self, model, tokenizer):
+                        self.model = model
+                        self.tokenizer = tokenizer
+                    def encode(self, sentences):
+                        inputs = self.tokenizer(sentences, padding=True, truncation=True, return_tensors="pt").to(self.model.device)
+                        with torch.no_grad():
+                            outputs = self.model(**inputs)
+                        # Mean pooling
+                        return outputs.last_hidden_state.mean(dim=1).cpu().numpy()
+                
+                embedding_model = FallbackEmbedder(model, tokenizer)
+                print("✅ Loaded Qwen3-embed-8b via FallbackEmbedder")
+            except Exception as e2:
+                print(f"❌ Fallback also failed: {e2}")
+                print("📦 Using mock embeddings (not semantic)")
 
     points = []
     for adr in adrs:
