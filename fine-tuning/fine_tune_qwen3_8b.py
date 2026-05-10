@@ -251,14 +251,14 @@ def train_model(model, tokenizer, dataset):
             fp16=not is_rocm,
             report_to="none",
             remove_unused_columns=False,
+            dataset_text_field="text",
         )
 
         trainer = SFTTrainer(
             model=model,
-            tokenizer=tokenizer,
             train_dataset=dataset,
+            processing_class=tokenizer,
             args=sft_config,
-            dataset_text_field="text",
         )
 
     print("   Training started (this may take 1-2 hours on MI300X)...")
