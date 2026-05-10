@@ -1,0 +1,32 @@
+# Gemini CLI metadata
+AGENTS.md
+GEMINI.md
+
+# Virtual environments
+venv/
+.venv/
+env/
+hackathon_env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Models and large files
+models/
+*.bin
+*.pt
+*.safetensors
+
+# Qdrant storage
+qdrant_storage/
+
+# Node.js
+node_modules/
+dist/
+plugin-obsidian/main.js
+
+# OS files
+.DS_Store
+Thumbs.db
