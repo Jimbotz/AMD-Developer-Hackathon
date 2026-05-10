@@ -130,7 +130,7 @@ TRAINING_ARGS = {
     "save_steps": 100,
     "learning_rate": 2e-4,
     "weight_decay": 0.01,
-    "optim": "paged_adamw_8bit",
+    "optim": "adamw_torch",
     "lr_scheduler_type": "cosine",
     "seed": 42,
     "output_dir": OUTPUT_DIR,
