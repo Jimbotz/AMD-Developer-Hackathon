@@ -14,14 +14,10 @@ from pathlib import Path
 
 # === ROCm + Python 3.12 fixes (must be before any torch/transformers imports) ===
 import torch
-if not hasattr(torch, "int1"):
-    torch.int1 = torch.int8
-if not hasattr(torch, "int2"):
-    torch.int2 = torch.int8
-if not hasattr(torch, "int3"):
-    torch.int3 = torch.int8
-if not hasattr(torch, "int4"):
-    torch.int4 = torch.int8
+for _int_type in range(1, 9):
+    _attr = f"int{_int_type}"
+    if not hasattr(torch, _attr):
+        setattr(torch, _attr, torch.int8)
 os.environ["TRANSFORMERS_NO_TORCHAO"] = "1"
 
 try:
