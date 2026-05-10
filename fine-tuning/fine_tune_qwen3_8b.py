@@ -116,18 +116,18 @@ LORA_CONFIG = {
 # Training arguments
 TRAINING_ARGS = {
     "num_train_epochs": 3,
-    "per_device_train_batch_size": 8,
-    "gradient_accumulation_steps": 2,
-    "warmup_steps": 100,
-    "logging_steps": 10,
-    "save_steps": 100,
-    "learning_rate": 1e-4,
-    "weight_decay": 0.01,
-    "optim": "adamw_torch",
+    "per_device_train_batch_size": 4,  # Bajamos un poco para mayor estabilidad
+    "gradient_accumulation_steps": 4,
+    "warmup_ratio": 0.1,
+    "logging_steps": 5,
+    "save_steps": 50,
+    "learning_rate": 2e-5,             # MUCHO más baja (antes 1e-4) para evitar NaNs
+    "weight_decay": 0.1,               # Más regularización
+    "optim": "adamw_torch",            # Usamos el optimizador más estable
     "lr_scheduler_type": "cosine",
     "seed": 42,
     "output_dir": OUTPUT_DIR,
-    "max_grad_norm": 0.3,
+    "max_grad_norm": 1.0,              # Aumentamos el clipping de gradiente
 }
 
 def load_and_prepare_dataset(dataset_path: str):
