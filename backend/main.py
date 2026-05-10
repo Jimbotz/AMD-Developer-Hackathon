@@ -8,6 +8,7 @@ import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import List, Optional
 from contextlib import asynccontextmanager
 
 # --- GLOBAL ROCM & PY3.12 WORKAROUND ---
@@ -57,36 +58,14 @@ from qdrant_client import QdrantClient
 import json
 from pathlib import Path
 
-# Check for ROCm + broken transformers custom op (grouped_mm_fallback type error)
-def _is_rocm_transformers_broken():
-    """Detect ROCm incompatibility with transformers custom op registration."""
-    if not os.path.exists("/dev/kfd"):
-        return False
-    try:
-        import torch
-        import importlib
-        m = importlib.import_module("transformers.modeling_utils")
-        return False
-    except ValueError as e:
-        if "grouped_mm_fallback" in str(e):
-            return True
-    except Exception:
-        pass
-    return False
-
-_ROCM_TRANSFORMERS_BROKEN = _is_rocm_transformers_broken()
-
 # Try to import transformers, handle gracefully if not available
 try:
-    if _ROCM_TRANSFORMERS_BROKEN:
-        raise ImportError("ROCm transformers custom op broken on this PyTorch build")
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from peft import PeftModel
     TRANSFORMERS_AVAILABLE = True
 except ImportError as e:
     TRANSFORMERS_AVAILABLE = False
     print(f"⚠️  Transformers not available: {e}")
-    print("   Run: pip install transformers (ROCm-compatible build required)")
 
 # Try to import sentence-transformers
 try:
@@ -137,7 +116,10 @@ model = None
 tokenizer = None
 qdrant_client = None
 embedding_model = None
+# Try both relative to root and relative to backend
 adapter_path = "./models/qwen-adr-lora"
+if not os.path.exists(adapter_path):
+    adapter_path = "../models/qwen-adr-lora"
 
 # ============== Lifespan ==============
 
@@ -153,10 +135,11 @@ async def lifespan(app: FastAPI):
     qdrant_api_key = os.getenv("QDRANT_API_KEY", None)
 
     try:
+        from qdrant_client import QdrantClient as QClient
         if qdrant_api_key:
-            qdrant_client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key)
+            qdrant_client = QClient(url=qdrant_url, api_key=qdrant_api_key)
         else:
-            qdrant_client = QdrantClient(url=qdrant_url)
+            qdrant_client = QClient(url=qdrant_url)
 
         # Test connection
         qdrant_client.get_collections()
@@ -170,7 +153,7 @@ async def lifespan(app: FastAPI):
         try:
             from sentence_transformers import SentenceTransformer
             embedding_model = SentenceTransformer("Qwen/Qwen3-Embedding-8B")
-            print("✅ Loaded Qwen3-embed-8b embeddings")
+            print("✅ Loaded Qwen3-Embedding-8B embeddings")
         except Exception as e:
             print(f"⚠️  Could not load embedding model: {e}")
             print("ℹ️  Semantic search will use mock vectors on this hardware")
@@ -194,7 +177,7 @@ async def lifespan(app: FastAPI):
                 model = PeftModel.from_pretrained(model, adapter_path)
                 print("✅ Adapter loaded successfully")
             else:
-                print("ℹ️  No fine-tuned adapter found. Using base model.")
+                print(f"ℹ️  No fine-tuned adapter found at {adapter_path}. Using base model.")
 
             print("✅ Model ready")
         except Exception as e:
@@ -267,15 +250,13 @@ def detect_security_risks(title: str, content: str) -> List[SecurityRisk]:
 
     # NoSQL Injection
     if any(kw in combined for kw in ["mongodb", "mongo"]):
-        if "without validation" in combined or "no validation" in combined:
+        if "without validation" in combined or "no validation" in combined or "flexible schema" in combined:
             risks.append(SecurityRisk(
                 severity="high",
                 type="nosql_injection",
-                description="MongoDB proposals should include input validation to prevent NoSQL injection attacks.",
+                description="MongoDB proposals often lack strict schema validation. Ensure input validation is implemented to prevent injection.",
                 secure_alternative='''# MongoDB with input validation
 from bson.objectid import ObjectId
-from pymongo import MongoClient
-
 def get_user(user_id: str):
     if not ObjectId.is_valid(user_id):
         raise ValueError("Invalid ID format")
@@ -302,35 +283,7 @@ cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))'''
                 description="Credentials should be stored in secure vaults or environment variables, never in code.",
                 secure_alternative='''# Use environment variables or secrets manager
 import os
-from keyring import get_password
-
-api_key = os.environ.get('API_KEY') or get_password('myapp', 'api_key')'''
-            ))
-
-    # Encryption
-    if "encryption" in combined or "encrypt" in combined:
-        if "no encryption" in combined or "without encryption" in combined or "unencrypted" in combined:
-            if "at rest" in combined or "storage" in combined:
-                risks.append(SecurityRisk(
-                    severity="high",
-                    type="unencrypted_data",
-                    description="Data at rest should be encrypted to protect against data breaches.",
-                    secure_alternative='''# Encrypt data at rest
-from cryptography.fernet import Fernet
-cipher = Fernet(key)
-encrypted_data = cipher.encrypt(data)'''
-                ))
-
-    # JWT without verification
-    if "jwt" in combined:
-        if "without verification" in combined or "no verification" in combined:
-            risks.append(SecurityRisk(
-                severity="medium",
-                type="jwt_unverified",
-                description="JWT tokens must always be verified for signature, expiration, and claims.",
-                secure_alternative='''# Verify JWT
-import jwt
-decoded = jwt.verify(token, key, algorithms=["HS256"])'''
+api_key = os.environ.get('API_KEY')'''
             ))
 
     return risks
@@ -344,23 +297,14 @@ def detect_contradictions(title: str, content: str, related_adrs: List[RelatedAD
         adr_lower = adr.title.lower()
 
         # PostgreSQL vs MongoDB contradiction
-        if ("mongo" in combined or "nosql" in combined) and adr.title.lower().find("postgresql") != -1:
-            if adr.status == "accepted":
+        if ("mongo" in combined or "nosql" in combined) and (adr_lower.find("postgresql") != -1 or adr_lower.find("sql") != -1):
+            if adr.status in ["accepted", "final"]:
                 contradictions.append(Contradiction(
                     severity="high",
                     related_adr_title=adr.title,
-                    description=f"This ADR contradicts {adr.title} which was accepted. PostgreSQL provides ACID guarantees required for financial transactions.",
-                    source="django/final"
+                    description=f"This ADR contradicts {adr.title} which was {adr.status}. PostgreSQL is typically required for financial data integrity.",
+                    source=adr.category
                 ))
-
-        # Docker vs Kubernetes
-        if "kubernetes" in combined and ("docker" in adr_lower or "container") in adr_lower:
-            contradictions.append(Contradiction(
-                severity="low",
-                related_adr_title=adr.title,
-                description=f"May conflict with container-related decisions in {adr.title}.",
-                source=adr.category
-            ))
 
     return contradictions
 
@@ -371,19 +315,13 @@ def generate_recommendations(title: str, content: str, risks: List[SecurityRisk]
 
     if contradictions:
         recommendations.append("Review the related ADRs that this proposal contradicts before proceeding.")
-        recommendations.append("If the new use case requires different technology, create a superseding ADR explaining the rationale.")
+        recommendations.append("Consider if PostgreSQL with JSONB would satisfy the requirement while maintaining ACID guarantees.")
 
-    if any(r.severity == "critical" for r in risks):
-        recommendations.append("Address critical security issues before implementing this architecture.")
-
-    if any(r.type == "nosql_injection" for r in risks):
-        recommendations.append("Implement input validation and use MongoDB's built-in security features.")
-
-    if any(r.type == "sql_injection" for r in risks):
-        recommendations.append("Use parameterized queries or an ORM to prevent SQL injection attacks.")
+    if risks:
+        recommendations.append("Address the identified security risks, focusing on input validation and secure storage.")
 
     if not risks and not contradictions:
-        recommendations.append("No major issues detected. Consider adding more detail about failure scenarios and rollback plans.")
+        recommendations.append("No major issues detected. Consider adding more detail about failure scenarios.")
 
     return recommendations
 
@@ -420,6 +358,7 @@ async def validate_adr(request: ADRValidationRequest):
                 random.seed(hash_val % (2**32))
                 vector = [random.random() for _ in range(4096)]
 
+            # Force dimension check
             results = qdrant_client.search(
                 collection_name="adrs",
                 query_vector=vector,
@@ -440,47 +379,35 @@ async def validate_adr(request: ADRValidationRequest):
     # Detect technologies
     technologies = detect_technologies(request.content)
 
-    # Detect security risks (rule-based + model if available)
+    # Detect security risks
     risks = detect_security_risks(request.title, request.content)
 
     # If model is available, use it for enhanced analysis
+    model_critique = ""
     if model and tokenizer:
         try:
-            # Prepare context from related ADRs
             context_parts = [f"Related ADR: {adr.title} ({adr.status})" for adr in related_adrs[:3]]
             context_text = "\n".join(context_parts)
 
             prompt = f"""<|system|>
-You are an expert in Architecture Decision Records (ADRs). Systematically critique the architecture using AWS/Cloud Well-Architected Framework principles and identify security threats using the STRIDE methodology (Spoofing, Tampering, Repudiation, Info Disclosure, DoS, EoP). Provide actionable recommendations.
+You are an expert in Architecture Decision Records (ADRs). Systematically critique the architecture. Identify security threats and provide actionable recommendations.
 </|system|>
-
 <|user|>
 ADR Title: {request.title}
-
 ADR Content: {request.content}
-
-Related ADRs from history:
+Related ADRs:
 {context_text}
-
-Context: {request.context or "No additional context"}
 </|user|>
-
 <|assistant|>
 """
-
-            inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=4000)
+            inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
             inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
             with torch.no_grad():
-                outputs = model.generate(
-                    **inputs,
-                    max_new_tokens=1024,
-                    temperature=0.3,
-                    do_sample=True
-                )
+                outputs = model.generate(**inputs, max_new_tokens=512, temperature=0.1)
 
-            model_response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-            print(f"🤖 Model response received (length: {len(model_response)})")
+            model_critique = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            print(f"🤖 Model response received")
 
         except Exception as e:
             print(f"⚠️  Model inference error: {e}")
@@ -489,20 +416,15 @@ Context: {request.context or "No additional context"}
     contradictions = detect_contradictions(request.title, request.content, related_adrs)
 
     # Generate recommendations
-    recommendations = generate_recommendations(
-        request.title, request.content, risks, contradictions
-    )
+    recommendations = generate_recommendations(request.title, request.content, risks, contradictions)
 
     # Determine status
     if contradictions or any(r.severity in ["critical", "high"] for r in risks):
         status = "needs_review"
         message = "Issues detected that require attention before approval."
-    elif risks:
-        status = "needs_minor_revision"
-        message = "Minor issues found. Consider addressing them."
     else:
         status = "approved"
-        message = "ADR appears sound. No major issues detected."
+        message = "ADR appears sound."
 
     return ADRValidationResponse(
         status=status,
@@ -513,46 +435,6 @@ Context: {request.context or "No additional context"}
         related_adrs=related_adrs,
         detected_technologies=technologies
     )
-
-@app.post("/index-adr")
-async def index_adr(title: str, content: str, status: str = "proposed",
-                   category: str = "general", source: str = "manual"):
-    """Index a new ADR in Qdrant."""
-
-    if not qdrant_client:
-        raise HTTPException(status_code=503, detail="Qdrant not connected")
-
-    try:
-        import uuid
-
-        if embedding_model:
-            vector = embedding_model.encode(f"{title}\n{content}").tolist()
-        else:
-            import hashlib, random
-            hash_val = int(hashlib.md5(f"{title}{content}".encode()).hexdigest()[:8], 16)
-            random.seed(hash_val % (2**32))
-            vector = [random.random() for _ in range(4096)]
-
-        from qdrant_client.models import PointStruct
-
-        point = PointStruct(
-            id=str(uuid.uuid4()),
-            vector=vector,
-            payload={
-                "title": title,
-                "content": content,
-                "status": status,
-                "category": category,
-                "source": source
-            }
-        )
-
-        qdrant_client.upsert(collection_name="adrs", points=[point])
-
-        return {"status": "success", "message": f"ADR '{title}' indexed successfully"}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
