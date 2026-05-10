@@ -12,6 +12,33 @@ import os
 import sys
 from pathlib import Path
 
+# === ROCm + Python 3.12 fixes (must be before any torch/transformers imports) ===
+import torch
+if not hasattr(torch, "int1"):
+    torch.int1 = torch.int8
+if not hasattr(torch, "int2"):
+    torch.int2 = torch.int8
+os.environ["TRANSFORMERS_NO_TORCHAO"] = "1"
+
+try:
+    import torch._library.infer_schema
+    _original_infer_schema = torch._library.infer_schema.infer_schema
+
+    def _patched_infer_schema(fn, mutates_args, error_fn=None):
+        try:
+            return _original_infer_schema(fn, mutates_args, error_fn)
+        except ValueError as e:
+            if "unsupported type torch.Tensor" in str(e):
+                if "grouped_mm_fallback" in str(fn):
+                    return "transformers::grouped_mm_fallback(Tensor input, Tensor weight, Tensor offs) -> Tensor"
+            raise e
+
+    torch._library.infer_schema.infer_schema = _patched_infer_schema
+    print("🛠️  Applied ROCm + Python 3.12 fixes for torch/transformers")
+except Exception:
+    pass
+# ========================================================
+
 # Check AMD ROCm first — needed to configure everything else
 def check_amd_rocm():
     if os.path.exists("/dev/kfd"):
