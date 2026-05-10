@@ -143,42 +143,53 @@ def index_adrs(client: QdrantClient, adrs: list, use_embedded_model: bool = Fals
     embedding_model = None
     if use_embedded_model:
         print("📦 Initializing embedding model...")
-        try:
-            # Aggressive workaround for Python 3.12 + Transformers 4.45+ type hint bug on ROCm
-            import typing
-            from typing import Union, List, Optional, Sequence
-            import torch
-            
-            # Force registration of common types in the global namespace
-            globals()['torch'] = torch
-            globals()['Tensor'] = torch.Tensor
-            
-            from sentence_transformers import SentenceTransformer
-            embedding_model = SentenceTransformer("Qwen/Qwen3-Embedding-8B")
-            print("✅ Loaded Qwen3-embed-8b via SentenceTransformers")
-        except Exception as e:
-            print(f"⚠️  SentenceTransformers failed: {e}")
-            print("🔄 Attempting fallback to standard transformers...")
+        
+        # Check if we are on ROCm to use Unsloth optimization
+        is_rocm = os.path.exists("/dev/kfd")
+        
+        if is_rocm:
             try:
-                from transformers import AutoModel, AutoTokenizer
-                tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-Embedding-8B", trust_remote_code=True)
-                model = AutoModel.from_pretrained("Qwen/Qwen3-Embedding-8B", trust_remote_code=True, device_map="auto")
+                print("🚀 Using Unsloth for ROCm optimized embedding loading...")
+                from unsloth import FastLanguageModel
+                import torch
                 
-                class FallbackEmbedder:
+                # Qwen3-Embedding-8B uses the same architecture as Qwen3-8B
+                model, tokenizer = FastLanguageModel.from_pretrained(
+                    model_name="Qwen/Qwen3-Embedding-8B",
+                    max_seq_length=2048,
+                    load_in_4bit=True, # Use 4-bit to save memory on embedding loading
+                    dtype=torch.bfloat16,
+                    trust_remote_code=True,
+                )
+                
+                class UnslothEmbedder:
                     def __init__(self, model, tokenizer):
                         self.model = model
                         self.tokenizer = tokenizer
                     def encode(self, sentences):
+                        if isinstance(sentences, str):
+                            sentences = [sentences]
                         inputs = self.tokenizer(sentences, padding=True, truncation=True, return_tensors="pt").to(self.model.device)
                         with torch.no_grad():
-                            outputs = self.model(**inputs)
-                        # Mean pooling
-                        return outputs.last_hidden_state.mean(dim=1).cpu().numpy()
+                            outputs = self.model.model(**inputs, output_hidden_states=True)
+                        # Qwen3-Embedding uses the last hidden state of the last token or mean pooling
+                        return outputs.hidden_states[-1].mean(dim=1).cpu().numpy()
                 
-                embedding_model = FallbackEmbedder(model, tokenizer)
-                print("✅ Loaded Qwen3-embed-8b via FallbackEmbedder")
-            except Exception as e2:
-                print(f"❌ Fallback also failed: {e2}")
+                embedding_model = UnslothEmbedder(model, tokenizer)
+                print("✅ Loaded Qwen3-Embedding-8B via Unsloth (ROCm Optimized)")
+            except Exception as e:
+                print(f"⚠️  Unsloth embedding loading failed: {e}")
+                print("🔄 Falling back to standard methods...")
+
+        if not embedding_model:
+            try:
+                # Standard fallback path
+                import torch
+                from sentence_transformers import SentenceTransformer
+                embedding_model = SentenceTransformer("Qwen/Qwen3-Embedding-8B")
+                print("✅ Loaded Qwen3-Embedding-8B via SentenceTransformers")
+            except Exception as e:
+                print(f"⚠️  SentenceTransformers failed: {e}")
                 print("📦 Using mock embeddings (not semantic)")
 
     points = []
