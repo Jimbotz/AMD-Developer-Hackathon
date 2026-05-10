@@ -113,8 +113,8 @@ def index_adrs(client: QdrantClient, adrs: list, use_embedded_model: bool = Fals
                     inputs = self.tokenizer(sentences, padding=True, truncation=True, return_tensors="pt", max_length=2048).to(self.model.device)
                     with torch.no_grad():
                         out = self.model(**inputs)
-                    # Qwen3-Embedding uses mean pooling
-                    return out.last_hidden_state.mean(dim=1).cpu().numpy()
+                    # Convert to float32 immediately to avoid NumPy/Qdrant compatibility issues
+                    return out.last_hidden_state.mean(dim=1).to(torch.float32).cpu().numpy()
             
             embedding_model = SimpleEmbedder(model, tokenizer)
             print("✅ Semantic model loaded successfully!")
