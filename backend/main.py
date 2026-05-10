@@ -123,6 +123,31 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 # ============== Detection Logic ==============
 
+def detect_technologies(content: str) -> List[str]:
+    """Detect mentioned technologies in the ADR."""
+    tech_keywords = {
+        "PostgreSQL": ["postgresql", "postgres"],
+        "MongoDB": ["mongodb", "mongo"],
+        "Redis": ["redis"],
+        "Kubernetes": ["kubernetes", "k8s"],
+        "Docker": ["docker", "container"],
+        "AWS": ["aws", "amazon web services"],
+        "Azure": ["azure"],
+        "GCP": ["gcp", "google cloud"],
+        "Python": ["python"],
+        "JavaScript": ["javascript", "node.js", "nodejs"],
+        "Go": ["golang", " go "],
+        "Rust": ["rust"],
+        "GraphQL": ["graphql"],
+        "Terraform": ["terraform"],
+    }
+    content_lower = content.lower()
+    detected = []
+    for tech, keywords in tech_keywords.items():
+        if any(kw in content_lower for kw in keywords):
+            detected.append(tech)
+    return detected
+
 def detect_security_risks(title: str, content: str) -> List[SecurityRisk]:
     risks = []
     combined = f"{title} {content}".lower()
@@ -136,6 +161,7 @@ def detect_security_risks(title: str, content: str) -> List[SecurityRisk]:
 
 @app.post("/validate-adr", response_model=ADRValidationResponse)
 async def validate_adr(request: ADRValidationRequest):
+    technologies = detect_technologies(f"{request.title} {request.content}")
     related_adrs = []
     if vector_db and embedding_model:
         try:
@@ -180,7 +206,8 @@ async def validate_adr(request: ADRValidationRequest):
         message="Issues detected that require architectural review" if has_issue else "ADR appears sound",
         security_risks=risks,
         recommendations=[model_critique.strip()] if model_critique else [],
-        related_adrs=related_adrs[:5]
+        related_adrs=related_adrs[:5],
+        detected_technologies=technologies
     )
 
 if __name__ == "__main__":
