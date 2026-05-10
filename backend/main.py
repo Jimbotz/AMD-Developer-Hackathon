@@ -426,30 +426,45 @@ async def validate_adr(request: ADRValidationRequest):
             context_parts = [f"Related ADR: {adr.title} ({adr.status})" for adr in related_adrs[:3]]
             context_text = "\n".join(context_parts)
 
+            # Prompt exacto como el del entrenamiento
             prompt = f"""<|system|>
 You are a senior Software Architect. Critique the following Architecture Decision Record (ADR) using the Well-Architected Framework and STRIDE methodology.
-Structure your response using clear Markdown headers (###), bold text, and bullet points. 
-Be concise but technical.
-</|system|>
+Structure your response using clear Markdown headers (###), bold text, and bullet points. Be concise but technical.
 <|user|>
 ADR Title: {request.title}
 ADR Content: {request.content}
 Related ADRs:
 {context_text}
-</|user|>
 <|assistant|>
 """
             inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
             inputs = {k: v.to(model.device) for k, v in inputs.items()}
 
+            # Generación optimizada
             with torch.no_grad():
-                outputs = model.generate(**inputs, max_new_tokens=512, temperature=0.1)
+                outputs = model.generate(
+                    **inputs, 
+                    max_new_tokens=512, 
+                    temperature=0.7,
+                    top_p=0.9,
+                    repetition_penalty=1.1,
+                    do_sample=True,
+                    pad_token_id=tokenizer.pad_token_id,
+                    eos_token_id=tokenizer.eos_token_id
+                )
 
             full_response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            
+            # Limpieza profunda de tags residuales
+            model_critique = full_response
             if "<|assistant|>" in full_response:
                 model_critique = full_response.split("<|assistant|>")[-1].strip()
-            else:
-                model_critique = full_response.strip()
+            
+            # Remover ruidos de tags que el modelo pueda alucinar
+            for tag in ["<|start of output|>", "<|end of output|>", "<|assistant|>", "<|user|>", "<|system|>"]:
+                model_critique = model_critique.replace(tag, "")
+            
+            model_critique = model_critique.strip()
             
             print(f"Model response received")
 
