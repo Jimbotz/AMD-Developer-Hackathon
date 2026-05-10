@@ -20,6 +20,8 @@ if not hasattr(torch, "int2"):
     torch.int2 = torch.int8
 if not hasattr(torch, "int3"):
     torch.int3 = torch.int8
+if not hasattr(torch, "int4"):
+    torch.int4 = torch.int8
 os.environ["TRANSFORMERS_NO_TORCHAO"] = "1"
 
 try:
@@ -101,7 +103,56 @@ MAX_SEQ_LENGTH = 2048
 OUTPUT_DIR = "./models/qwen-adr-lora"
 DATASET_PATH = "training-data.jsonl"
 
-# ... (keep LoRA and Training configs)
+# LoRA configuration
+LORA_CONFIG = {
+    "r": 16,
+    "lora_alpha": 32,
+    "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+    "lora_dropout": 0.05,
+    "bias": "none",
+}
+
+# Training arguments
+TRAINING_ARGS = {
+    "num_train_epochs": 3,
+    "per_device_train_batch_size": 1,
+    "gradient_accumulation_steps": 8,
+    "warmup_steps": 10,
+    "logging_steps": 10,
+    "save_steps": 100,
+    "learning_rate": 2e-4,
+    "weight_decay": 0.01,
+    "optim": "paged_adamw_8bit",
+    "lr_scheduler_type": "cosine",
+    "seed": 42,
+    "output_dir": OUTPUT_DIR,
+    "max_grad_norm": 0.3,
+}
+
+def load_and_prepare_dataset(dataset_path: str):
+    """Load and prepare the dataset for training."""
+    print(f"📂 Loading dataset from {dataset_path}")
+
+    with open(dataset_path, 'r', encoding='utf-8') as f:
+        lines = f.readlines()
+
+    training_examples = []
+    for line in lines:
+        item = json.loads(line.strip())
+        messages = item.get("messages", [])
+
+        text = ""
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            text += f"<|{role}|>\n{content}\n"
+        text += "<|assistant|>\n"
+
+        training_examples.append({"text": text})
+
+    dataset = Dataset.from_list(training_examples)
+    print(f"✅ Loaded {len(dataset)} training examples")
+    return dataset
 
 def load_model():
     """Load Qwen3-8B with QLoRA configuration."""
