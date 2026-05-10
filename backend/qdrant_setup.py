@@ -154,15 +154,15 @@ def index_adrs(client: QdrantClient, adrs: list, use_embedded_model: bool = Fals
             globals()['Tensor'] = torch.Tensor
             
             from sentence_transformers import SentenceTransformer
-            embedding_model = SentenceTransformer("Qwen/Qwen3-embed-8b")
+            embedding_model = SentenceTransformer("Qwen/Qwen3-Embedding-8B")
             print("✅ Loaded Qwen3-embed-8b via SentenceTransformers")
         except Exception as e:
             print(f"⚠️  SentenceTransformers failed: {e}")
             print("🔄 Attempting fallback to standard transformers...")
             try:
                 from transformers import AutoModel, AutoTokenizer
-                tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-embed-8b", trust_remote_code=True)
-                model = AutoModel.from_pretrained("Qwen/Qwen3-embed-8b", trust_remote_code=True, device_map="auto")
+                tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-Embedding-8B", trust_remote_code=True)
+                model = AutoModel.from_pretrained("Qwen/Qwen3-Embedding-8B", trust_remote_code=True, device_map="auto")
                 
                 class FallbackEmbedder:
                     def __init__(self, model, tokenizer):
@@ -225,7 +225,7 @@ def search_adrs(client: QdrantClient, query: str, category: str = None,
             from typing import Union, List, Optional, Sequence
             import torch
             from sentence_transformers import SentenceTransformer
-            embedding_model = SentenceTransformer("Qwen/Qwen3-embed-8b")
+            embedding_model = SentenceTransformer("Qwen/Qwen3-Embedding-8B")
         except Exception:
             pass
 

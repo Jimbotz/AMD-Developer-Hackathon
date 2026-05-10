@@ -127,7 +127,7 @@ async def lifespan(app: FastAPI):
     if SENTENCE_TRANSFORMERS_AVAILABLE:
         try:
             from sentence_transformers import SentenceTransformer
-            embedding_model = SentenceTransformer("Qwen/Qwen3-embed-8b")
+            embedding_model = SentenceTransformer("Qwen/Qwen3-Embedding-8B")
             print("✅ Loaded Qwen3-embed-8b embeddings")
         except Exception as e:
             print(f"⚠️  Could not load embedding model: {e}")
