@@ -143,7 +143,11 @@ def index_adrs(client: QdrantClient, adrs: list, use_embedded_model: bool = Fals
     embedding_model = None
     if use_embedded_model:
         try:
+            # Workaround for Python 3.12 + Transformers 4.45+ type hint bug on ROCm
+            from typing import Union, List, Optional, Sequence
+            import torch
             from sentence_transformers import SentenceTransformer
+            
             embedding_model = SentenceTransformer("Qwen/Qwen3-embed-8b")
             print("📦 Using Qwen3-embed-8b for embeddings")
         except Exception as e:
@@ -190,6 +194,9 @@ def search_adrs(client: QdrantClient, query: str, category: str = None,
     embedding_model = None
     if use_embedded_model:
         try:
+            # Workaround for Python 3.12 + Transformers 4.45+ type hint bug on ROCm
+            from typing import Union, List, Optional, Sequence
+            import torch
             from sentence_transformers import SentenceTransformer
             embedding_model = SentenceTransformer("Qwen/Qwen3-embed-8b")
         except Exception:
