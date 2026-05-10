@@ -114,19 +114,31 @@ class ADRValidationResponse(BaseModel):
 
 model = None
 tokenizer = None
-qdrant_client = None
+vector_db = None  # Renamed from qdrant_client to avoid shadowing
 embedding_model = None
-# Try both relative to root and relative to backend
-adapter_path = "./models/qwen-adr-lora"
-if not os.path.exists(adapter_path):
-    adapter_path = "../models/qwen-adr-lora"
+
+def find_adapter_path():
+    """Search for the fine-tuned adapter in multiple possible locations."""
+    possible_paths = [
+        "./models/qwen-adr-lora",
+        "../models/qwen-adr-lora",
+        "../fine-tuning/models/qwen-adr-lora",
+        "/root/AMD-Developer-Hackathon/models/qwen-adr-lora",
+        "/root/AMD-Developer-Hackathon/fine-tuning/models/qwen-adr-lora"
+    ]
+    for p in possible_paths:
+        if os.path.exists(os.path.join(p, "adapter_config.json")):
+            return p
+    return None
+
+adapter_path = find_adapter_path()
 
 # ============== Lifespan ==============
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize models on startup."""
-    global model, tokenizer, qdrant_client, embedding_model
+    global model, tokenizer, vector_db, embedding_model
 
     print("🔄 Initializing ADR Validator API...")
 
@@ -137,16 +149,16 @@ async def lifespan(app: FastAPI):
     try:
         from qdrant_client import QdrantClient as QClient
         if qdrant_api_key:
-            qdrant_client = QClient(url=qdrant_url, api_key=qdrant_api_key)
+            vector_db = QClient(url=qdrant_url, api_key=qdrant_api_key)
         else:
-            qdrant_client = QClient(url=qdrant_url)
+            vector_db = QClient(url=qdrant_url)
 
         # Test connection
-        qdrant_client.get_collections()
+        vector_db.get_collections()
         print(f"✅ Connected to Qdrant at {qdrant_url}")
     except Exception as e:
         print(f"⚠️  Qdrant not connected: {e}")
-        qdrant_client = None
+        vector_db = None
 
     # Initialize embedding model
     if SENTENCE_TRANSFORMERS_AVAILABLE:
@@ -172,12 +184,12 @@ async def lifespan(app: FastAPI):
             )
             tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
 
-            if os.path.exists(adapter_path):
+            if adapter_path:
                 print(f"🔄 Loading fine-tuned adapter from {adapter_path}...")
                 model = PeftModel.from_pretrained(model, adapter_path)
                 print("✅ Adapter loaded successfully")
             else:
-                print(f"ℹ️  No fine-tuned adapter found at {adapter_path}. Using base model.")
+                print("ℹ️  No fine-tuned adapter found. Using base model.")
 
             print("✅ Model ready")
         except Exception as e:
@@ -336,7 +348,7 @@ async def health_check():
     return {
         "status": "ok",
         "model_loaded": model is not None,
-        "qdrant_connected": qdrant_client is not None,
+        "qdrant_connected": vector_db is not None,
         "embeddings_loaded": embedding_model is not None
     }
 
@@ -346,7 +358,7 @@ async def validate_adr(request: ADRValidationRequest):
 
     # Search for related ADRs in Qdrant
     related_adrs = []
-    if qdrant_client:
+    if vector_db:
         try:
             query_text = f"{request.title} {request.content}"
             if embedding_model:
@@ -359,7 +371,7 @@ async def validate_adr(request: ADRValidationRequest):
                 vector = [random.random() for _ in range(4096)]
 
             # Force dimension check
-            results = qdrant_client.search(
+            results = vector_db.search(
                 collection_name="adrs",
                 query_vector=vector,
                 limit=5,
@@ -383,7 +395,6 @@ async def validate_adr(request: ADRValidationRequest):
     risks = detect_security_risks(request.title, request.content)
 
     # If model is available, use it for enhanced analysis
-    model_critique = ""
     if model and tokenizer:
         try:
             context_parts = [f"Related ADR: {adr.title} ({adr.status})" for adr in related_adrs[:3]]
@@ -406,7 +417,7 @@ Related ADRs:
             with torch.no_grad():
                 outputs = model.generate(**inputs, max_new_tokens=512, temperature=0.1)
 
-            model_critique = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            # model_critique = tokenizer.decode(outputs[0], skip_special_tokens=True)
             print(f"🤖 Model response received")
 
         except Exception as e:
@@ -435,6 +446,46 @@ Related ADRs:
         related_adrs=related_adrs,
         detected_technologies=technologies
     )
+
+@app.post("/index-adr")
+async def index_adr(title: str, content: str, status: str = "proposed",
+                   category: str = "general", source: str = "manual"):
+    """Index a new ADR in Qdrant."""
+
+    if not vector_db:
+        raise HTTPException(status_code=503, detail="Qdrant not connected")
+
+    try:
+        import uuid
+
+        if embedding_model:
+            vector = embedding_model.encode(f"{title}\n{content}").tolist()
+        else:
+            import hashlib, random
+            hash_val = int(hashlib.md5(f"{title}{content}".encode()).hexdigest()[:8], 16)
+            random.seed(hash_val % (2**32))
+            vector = [random.random() for _ in range(4096)]
+
+        from qdrant_client.models import PointStruct
+
+        point = PointStruct(
+            id=str(uuid.uuid4()),
+            vector=vector,
+            payload={
+                "title": title,
+                "content": content,
+                "status": status,
+                "category": category,
+                "source": source
+            }
+        )
+
+        vector_db.upsert(collection_name="adrs", points=[point])
+
+        return {"status": "success", "message": f"ADR '{title}' indexed successfully"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
