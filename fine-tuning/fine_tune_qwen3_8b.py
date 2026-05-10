@@ -70,7 +70,7 @@ from datasets import load_dataset, Dataset
 
 # Configuration
 MODEL_NAME = "Qwen/Qwen3-8B"
-MAX_SEQ_LENGTH = 2048
+MAX_SEQ_LENGTH = 4096
 OUTPUT_DIR = "./models/qwen-adr-lora"
 DATASET_PATH = "training-data.jsonl"
 
@@ -116,12 +116,12 @@ LORA_CONFIG = {
 # Training arguments
 TRAINING_ARGS = {
     "num_train_epochs": 3,
-    "per_device_train_batch_size": 1,
-    "gradient_accumulation_steps": 8,
-    "warmup_steps": 10,
+    "per_device_train_batch_size": 8,
+    "gradient_accumulation_steps": 2,
+    "warmup_steps": 100,
     "logging_steps": 10,
     "save_steps": 100,
-    "learning_rate": 2e-4,
+    "learning_rate": 1e-4,
     "weight_decay": 0.01,
     "optim": "adamw_torch",
     "lr_scheduler_type": "cosine",
