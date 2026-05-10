@@ -1,44 +1,30 @@
 """
-Fine-tuning Script for Qwen3-8B
-Optimized for AMD MI300X with 192GB HBM3
-
-Run with:
-    python fine_tune_qwen3_8b.py
-
-Expected time on MI300X: ~1.5 hours for 3 epochs
+Fine-tuning Script for Qwen3-8B - STABLE VERSION
+Optimized for AMD MI300X - Force FP16 to avoid NaNs
 """
 
 import os
 import sys
 from pathlib import Path
-
-# --- GLOBAL ROCM & PY3.12 WORKAROUND ---
-# This must run before ANY transformers/torch imports
 import torch
 
-# 1. FIX: module 'torch' has no attribute 'int1'
+# --- GLOBAL ROCM & PY3.12 WORKAROUND ---
 for _int_type in range(1, 9):
     _attr = f"int{_int_type}"
     if not hasattr(torch, _attr):
         setattr(torch, _attr, torch.int8)
-print("Patched missing 'torch.intX' attributes")
 
-# 2. FIX: torch.utils._pytree has no attribute 'register_constant'
 import torch.utils._pytree
 if not hasattr(torch.utils._pytree, "register_constant"):
     def _mock_register_constant(cls):
         return cls
     torch.utils._pytree.register_constant = _mock_register_constant
-    print("Patched missing 'torch.utils._pytree.register_constant' attribute")
 
-# 3. Disable torchao integration in transformers
 os.environ["TRANSFORMERS_NO_TORCHAO"] = "1"
 
-# 4. Patch the specific bug in Torch 2.4/2.5 + Python 3.12 type hint registration
 try:
     import torch._library.infer_schema
     _original_infer_schema = torch._library.infer_schema.infer_schema
-
     def _patched_infer_schema(*args, **kwargs):
         try:
             return _original_infer_schema(*args, **kwargs)
@@ -48,22 +34,17 @@ try:
                 if fn and "grouped_mm_fallback" in str(fn):
                     return "transformers::grouped_mm_fallback(Tensor input, Tensor weight, Tensor offs) -> Tensor"
             raise e
-
     torch._library.infer_schema.infer_schema = _patched_infer_schema
-    print("Applied Torch type-hint patch for ROCm + Python 3.12")
-except Exception as e:
-    print(f"Failed to apply torch patch: {e}")
+except Exception:
+    pass
 
-# Import Unsloth FIRST — must be before any transformers imports per Unsloth docs
 UNSLOTH_AVAILABLE = False
 try:
     import unsloth
     from unsloth import FastLanguageModel
     UNSLOTH_AVAILABLE = True
-    print("Unsloth available and loaded")
-except Exception as e:
-    print(f"Unsloth not available: {e}")
-# ------------------------------
+except Exception:
+    pass
 
 import json
 from datasets import load_dataset, Dataset
@@ -74,35 +55,10 @@ MAX_SEQ_LENGTH = 4096
 OUTPUT_DIR = "./models/qwen-adr-lora"
 DATASET_PATH = "training-data.jsonl"
 
-# Check AMD ROCm
 def check_amd_rocm():
-    if os.path.exists("/dev/kfd"):
-        print("AMD ROCm detected")
-        return True
-    print("ROCm not detected, will use CUDA if available")
-    return False
+    return os.path.exists("/dev/kfd")
 
 is_rocm = check_amd_rocm()
-
-# Detect broken transformers custom-op on ROCm (grouped_mm_fallback type error)
-_ROCM_BROKEN_TRANSFORMERS = False
-def _check_transformers_works():
-    global _ROCM_BROKEN_TRANSFORMERS
-    try:
-        from transformers import AutoModelForCausalLM
-        return True
-    except ValueError as e:
-        if "grouped_mm_fallback" in str(e) or "unsupported type torch.Tensor" in str(e):
-            _ROCM_BROKEN_TRANSFORMERS = True
-            return False
-    except Exception:
-        pass
-    return True
-
-if is_rocm:
-    if not _check_transformers_works():
-        print("ROCm environment has a known incompatibility in 'transformers' (grouped_mm_fallback)")
-        print("Attempting to use Unsloth as a mandatory workaround...")
 
 # LoRA configuration
 LORA_CONFIG = {
@@ -113,185 +69,71 @@ LORA_CONFIG = {
     "bias": "none",
 }
 
-# Training arguments
+# STABLE TRAINING ARGS FOR ROCM
 TRAINING_ARGS = {
     "num_train_epochs": 3,
-    "per_device_train_batch_size": 4,  # Bajamos un poco para mayor estabilidad
-    "gradient_accumulation_steps": 4,
+    "per_device_train_batch_size": 2,
+    "gradient_accumulation_steps": 8,
     "warmup_ratio": 0.1,
     "logging_steps": 5,
     "save_steps": 50,
-    "learning_rate": 2e-5,             # MUCHO más baja (antes 1e-4) para evitar NaNs
-    "weight_decay": 0.1,               # Más regularización
-    "optim": "adamw_torch",            # Usamos el optimizador más estable
-    "lr_scheduler_type": "cosine",
+    "learning_rate": 1e-5, # Ultra stable LR
+    "weight_decay": 0.01,
+    "optim": "adamw_torch",
+    "lr_scheduler_type": "linear",
     "seed": 42,
     "output_dir": OUTPUT_DIR,
-    "max_grad_norm": 1.0,              # Aumentamos el clipping de gradiente
+    "max_grad_norm": 0.5,
 }
 
 def load_and_prepare_dataset(dataset_path: str):
-    """Load and prepare the dataset for training."""
-    print(f"Loading dataset from {dataset_path}")
-
     with open(dataset_path, 'r', encoding='utf-8') as f:
         lines = f.readlines()
-
-    training_examples = []
-    for line in lines:
-        item = json.loads(line.strip())
-        messages = item.get("messages", [])
-
-        text = ""
-        for msg in messages:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            text += f"<|{role}|>\n{content}\n"
-        text += "<|assistant|>\n"
-
-        training_examples.append({"text": text})
-
-    dataset = Dataset.from_list(training_examples)
-    print(f"Loaded {len(dataset)} training examples")
-    return dataset
+    training_examples = [{"text": "".join([f"<|{m['role']}|>\n{m['content']}\n" for m in json.loads(line.strip()).get("messages", [])]) + "<|assistant|>\n"} for line in lines]
+    return Dataset.from_list(training_examples)
 
 def load_model():
-    """Load Qwen3-8B with QLoRA configuration."""
-    print(f"\nLoading model: {MODEL_NAME}")
-
-    if _ROCM_BROKEN_TRANSFORMERS and not UNSLOTH_AVAILABLE:
-        print("\nERROR: Your environment has a broken Transformers/Torch integration on ROCm.")
-        print("The 'grouped_mm_fallback' custom op is failing due to type hint issues.")
-        print("\nHOW TO FIX:")
-        print("1. Install Unsloth (Recommended): pip install \"unsloth[rocm] @ git+https://github.com/unslothai/unsloth.git\"")
-        raise RuntimeError("Incompatible environment for fine-tuning on ROCm.")
-
-    # Native BF16 for AMD Instinct
-    dtype = torch.bfloat16 if is_rocm else torch.float16
-
+    dtype = torch.float16 # FORCE FP16 FOR STABILITY
+    
     if UNSLOTH_AVAILABLE:
         try:
             model, tokenizer = FastLanguageModel.from_pretrained(
                 model_name=MODEL_NAME,
                 max_seq_length=MAX_SEQ_LENGTH,
-                load_in_4bit=False, # Use native BF16 for MI300X
+                load_in_4bit=False,
                 dtype=dtype,
                 trust_remote_code=True,
             )
             model = FastLanguageModel.get_peft_model(model, **LORA_CONFIG)
-            print(f"Model loaded with Unsloth optimizations ({dtype})")
             return model, tokenizer
-        except Exception as e:
-            print(f"Unsloth loading failed: {e}. Falling back to standard transformers...")
+        except Exception:
+            pass
 
-    # Standard transformers path
     from transformers import AutoModelForCausalLM, AutoTokenizer
-
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_NAME,
-        torch_dtype=dtype,
-        device_map="auto",
-        trust_remote_code=True,
-    )
-
+    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=dtype, device_map="auto", trust_remote_code=True)
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
 
     from peft import LoraConfig, get_peft_model, TaskType
-
-    peft_config = LoraConfig(
-        r=LORA_CONFIG["r"],
-        lora_alpha=LORA_CONFIG["lora_alpha"],
-        target_modules=LORA_CONFIG["target_modules"],
-        lora_dropout=LORA_CONFIG["lora_dropout"],
-        bias=LORA_CONFIG["bias"],
-        task_type=TaskType.CAUSAL_LM,
-    )
-
-    model = get_peft_model(model, peft_config)
-    print("Model loaded with standard PEFT")
-    model.print_trainable_parameters()
-
-    return model, tokenizer
-
+    peft_config = LoraConfig(r=LORA_CONFIG["r"], lora_alpha=LORA_CONFIG["lora_alpha"], target_modules=LORA_CONFIG["target_modules"], lora_dropout=LORA_CONFIG["lora_dropout"], bias=LORA_CONFIG["bias"], task_type=TaskType.CAUSAL_LM)
+    return get_peft_model(model, peft_config), tokenizer
 
 def train_model(model, tokenizer, dataset):
-    """Train the model."""
-    print("\nStarting training...")
-
     if UNSLOTH_AVAILABLE:
         from unsloth import UnslothTrainer, UnslothTrainingArguments
-        
-        training_args = UnslothTrainingArguments(
-            **TRAINING_ARGS,
-            bf16=is_rocm,
-            fp16=not is_rocm,
-            report_to="none",
-        )
-
-        trainer = UnslothTrainer(
-            model=model,
-            tokenizer=tokenizer,
-            train_dataset=dataset,
-            args=training_args,
-        )
+        trainer = UnslothTrainer(model=model, tokenizer=tokenizer, train_dataset=dataset, args=UnslothTrainingArguments(**TRAINING_ARGS, bf16=False, fp16=True, report_to="none"))
     else:
         from trl import SFTTrainer, SFTConfig
-
-        sft_config = SFTConfig(
-            **TRAINING_ARGS,
-            bf16=is_rocm,
-            fp16=not is_rocm,
-            report_to="none",
-            remove_unused_columns=False,
-            dataset_text_field="text",
-        )
-
-        trainer = SFTTrainer(
-            model=model,
-            train_dataset=dataset,
-            processing_class=tokenizer,
-            args=sft_config,
-        )
-
-    print("Training started (this may take 1-2 hours on MI300X)...")
+        trainer = SFTTrainer(model=model, train_dataset=dataset, processing_class=tokenizer, args=SFTConfig(**TRAINING_ARGS, bf16=False, fp16=True, report_to="none", remove_unused_columns=False, dataset_text_field="text"))
     trainer.train()
-
     return trainer
 
-def save_model(model, tokenizer):
-    """Save the fine-tuned model."""
-    print(f"\nSaving model to {OUTPUT_DIR}")
-
-    Path(OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
-
+def main():
+    dataset = load_and_prepare_dataset(DATASET_PATH)
+    model, tokenizer = load_model()
+    train_model(model, tokenizer, dataset)
     model.save_pretrained(OUTPUT_DIR)
     tokenizer.save_pretrained(OUTPUT_DIR)
-
-    print("Model saved successfully!")
-
-def main():
-    """Main fine-tuning pipeline."""
-    print("="*60)
-    print("ADR Validator - Qwen3-8B Fine-tuning")
-    print("="*60)
-
-    dataset_path = Path(DATASET_PATH)
-    if not dataset_path.exists():
-        print(f"\nDataset not found at {DATASET_PATH}")
-        sys.exit(1)
-
-    dataset = load_and_prepare_dataset(DATASET_PATH)
-
-    model, tokenizer = load_model()
-
-    trainer = train_model(model, tokenizer, dataset)
-
-    save_model(model, tokenizer)
-
-    print("\n" + "="*60)
-    print("Fine-tuning complete!")
-    print("="*60)
 
 if __name__ == "__main__":
     main()
