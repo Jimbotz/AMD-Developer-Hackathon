@@ -12,34 +12,63 @@ import os
 import sys
 from pathlib import Path
 
-# === ROCm + Python 3.12 fixes (must be before any torch/transformers imports) ===
+# --- GLOBAL ROCM & PY3.12 WORKAROUND ---
+# This must run before ANY transformers/torch imports
 import torch
+
+# 1. FIX: module 'torch' has no attribute 'int1'
 for _int_type in range(1, 9):
     _attr = f"int{_int_type}"
     if not hasattr(torch, _attr):
         setattr(torch, _attr, torch.int8)
+print("🛠️  Patched missing 'torch.intX' attributes")
+
+# 2. Disable torchao integration in transformers to avoid further issues
 os.environ["TRANSFORMERS_NO_TORCHAO"] = "1"
 
+# 3. Patch the specific bug in Torch 2.4/2.5 + Python 3.12 type hint registration
 try:
     import torch._library.infer_schema
     _original_infer_schema = torch._library.infer_schema.infer_schema
 
-    def _patched_infer_schema(fn, mutates_args, error_fn=None):
+    # Signature varies across torch versions, use *args, **kwargs for robustness
+    def _patched_infer_schema(*args, **kwargs):
         try:
-            return _original_infer_schema(fn, mutates_args, error_fn)
+            return _original_infer_schema(*args, **kwargs)
         except ValueError as e:
             if "unsupported type torch.Tensor" in str(e):
-                if "grouped_mm_fallback" in str(fn):
+                # Try to extract the function from args
+                fn = args[0] if args else kwargs.get('fn')
+                if fn and "grouped_mm_fallback" in str(fn):
                     return "transformers::grouped_mm_fallback(Tensor input, Tensor weight, Tensor offs) -> Tensor"
             raise e
 
     torch._library.infer_schema.infer_schema = _patched_infer_schema
-    print("🛠️  Applied ROCm + Python 3.12 fixes for torch/transformers")
-except Exception:
-    pass
-# ========================================================
+    print("🛠️  Applied Torch type-hint patch for ROCm + Python 3.12")
+except Exception as e:
+    print(f"⚠️  Failed to apply torch patch: {e}")
 
-# Check AMD ROCm first — needed to configure everything else
+# Import Unsloth FIRST — must be before any transformers imports per Unsloth docs
+UNSLOTH_AVAILABLE = False
+try:
+    import unsloth
+    from unsloth import FastLanguageModel
+    UNSLOTH_AVAILABLE = True
+    print("✅ Unsloth available and loaded")
+except Exception as e:
+    print(f"⚠️  Unsloth not available: {e}")
+# ------------------------------
+
+import json
+from datasets import load_dataset, Dataset
+
+# Configuration
+MODEL_NAME = "Qwen/Qwen3-8B"
+MAX_SEQ_LENGTH = 2048
+OUTPUT_DIR = "./models/qwen-adr-lora"
+DATASET_PATH = "training-data.jsonl"
+
+# Check AMD ROCm
 def check_amd_rocm():
     if os.path.exists("/dev/kfd"):
         print("✅ AMD ROCm detected")
@@ -54,11 +83,6 @@ _ROCM_BROKEN_TRANSFORMERS = False
 def _check_transformers_works():
     global _ROCM_BROKEN_TRANSFORMERS
     try:
-        import torch
-        # Workaround for Python 3.12 + Transformers 4.45+ type hint bug in custom_op
-        # This sometimes pre-registers the needed types
-        from typing import Union, List, Optional, Sequence
-        
         from transformers import AutoModelForCausalLM
         return True
     except ValueError as e:
@@ -69,35 +93,10 @@ def _check_transformers_works():
         pass
     return True
 
-# Probe transformers import on ROCm early, before any standard transformers code runs
 if is_rocm:
     if not _check_transformers_works():
         print("⚠️  ROCm environment has a known incompatibility in 'transformers' (grouped_mm_fallback)")
-        print("   This is often caused by Transformers 4.45.0 on Python 3.12.")
         print("   Attempting to use Unsloth as a mandatory workaround...")
-
-# Import Unsloth FIRST — must be before any transformers imports per Unsloth docs
-UNSLOTH_AVAILABLE = False
-try:
-    import torch
-    import unsloth
-    from unsloth import FastLanguageModel
-    UNSLOTH_AVAILABLE = True
-    print("✅ Unsloth available and loaded")
-except Exception as e:
-    print(f"⚠️  Unsloth not available: {e}")
-    if is_rocm:
-        print("   CRITICAL: On AMD ROCm, Unsloth is highly recommended to avoid transformers bugs.")
-        print("   Install: pip install \"unsloth[rocm] @ git+https://github.com/unslothai/unsloth.git\"")
-
-import json
-from datasets import load_dataset, Dataset
-
-# Configuration
-MODEL_NAME = "Qwen/Qwen3-8B"
-MAX_SEQ_LENGTH = 2048
-OUTPUT_DIR = "./models/qwen-adr-lora"
-DATASET_PATH = "training-data.jsonl"
 
 # LoRA configuration
 LORA_CONFIG = {
@@ -159,12 +158,10 @@ def load_model():
         print("   The 'grouped_mm_fallback' custom op is failing due to type hint issues.")
         print("\n🛠️  HOW TO FIX:")
         print("   1. Install Unsloth (Recommended): pip install \"unsloth[rocm] @ git+https://github.com/unslothai/unsloth.git\"")
-        print("   2. OR Update Transformers: pip install --upgrade transformers")
-        print("   3. OR Downgrade Transformers: pip install transformers==4.44.2")
         raise RuntimeError("Incompatible environment for fine-tuning on ROCm.")
 
     # Native BF16 for AMD Instinct
-    dtype = "bfloat16" if is_rocm else "float16"
+    dtype = torch.bfloat16 if is_rocm else torch.float16
 
     if UNSLOTH_AVAILABLE:
         try:
@@ -183,12 +180,10 @@ def load_model():
 
     # Standard transformers path
     from transformers import AutoModelForCausalLM, AutoTokenizer
-    import torch
 
-    # Fix: Use 'dtype' instead of deprecated 'torch_dtype'
     model = AutoModelForCausalLM.from_pretrained(
         MODEL_NAME,
-        dtype=dtype if is_rocm else torch.float16,
+        dtype=dtype,
         device_map="auto",
         trust_remote_code=True,
     )
@@ -278,7 +273,6 @@ def main():
     dataset_path = Path(DATASET_PATH)
     if not dataset_path.exists():
         print(f"\n❌ Dataset not found at {DATASET_PATH}")
-        print("   Run generate_dataset.py first to create the training data")
         sys.exit(1)
 
     dataset = load_and_prepare_dataset(DATASET_PATH)
@@ -292,10 +286,6 @@ def main():
     print("\n" + "="*60)
     print("✅ Fine-tuning complete!")
     print("="*60)
-    print(f"\n📁 Model saved to: {OUTPUT_DIR}")
-    print("\n💡 To use the fine-tuned model:")
-    print(f"   python backend/main.py")
-    print(f"   (The API will automatically use models/qwen-adr-lora)")
 
 if __name__ == "__main__":
     main()
