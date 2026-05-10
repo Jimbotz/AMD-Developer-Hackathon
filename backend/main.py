@@ -1,6 +1,6 @@
 """
-ADR Security Validator API
-FastAPI backend for validating ADRs and detecting security issues.
+ADR Security Validator API - STABLE VERSION
+Optimized for AMD MI300X with Float32 Inference
 """
 
 import os
@@ -12,70 +12,38 @@ from typing import List, Optional
 from contextlib import asynccontextmanager
 
 # --- GLOBAL ROCM & PY3.12 WORKAROUND ---
-# This must run before ANY transformers/torch imports
-import torch
-
-# 1. FIX: module 'torch' has no attribute 'int1'
 for _int_type in range(1, 9):
     _attr = f"int{_int_type}"
     if not hasattr(torch, _attr):
         setattr(torch, _attr, torch.int8)
 
-# 2. FIX: torch.utils._pytree has no attribute 'register_constant'
 import torch.utils._pytree
 if not hasattr(torch.utils._pytree, "register_constant"):
-    def _mock_register_constant(cls):
-        return cls
+    def _mock_register_constant(cls): return cls
     torch.utils._pytree.register_constant = _mock_register_constant
 
-# 3. Disable torchao integration in transformers
 os.environ["TRANSFORMERS_NO_TORCHAO"] = "1"
 
-# 4. Patch the specific bug in Torch 2.4/2.5 + Python 3.12 type hint registration
 try:
     import torch._library.infer_schema
     _original_infer_schema = torch._library.infer_schema.infer_schema
-
     def _patched_infer_schema(*args, **kwargs):
-        try:
-            return _original_infer_schema(*args, **kwargs)
+        try: return _original_infer_schema(*args, **kwargs)
         except ValueError as e:
             if "unsupported type torch.Tensor" in str(e):
                 fn = args[0] if args else kwargs.get('fn')
                 if fn and "grouped_mm_fallback" in str(fn):
                     return "transformers::grouped_mm_fallback(Tensor input, Tensor weight, Tensor offs) -> Tensor"
             raise e
-
     torch._library.infer_schema.infer_schema = _patched_infer_schema
-except Exception:
-    pass
-
-import typing
-from typing import Union, List, Optional, Sequence
-# ------------------------------
+except Exception: pass
 
 from qdrant_client import QdrantClient
-import json
-from pathlib import Path
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
+from sentence_transformers import SentenceTransformer
 
-# Try to import transformers, handle gracefully if not available
-try:
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    from peft import PeftModel
-    TRANSFORMERS_AVAILABLE = True
-except ImportError as e:
-    TRANSFORMERS_AVAILABLE = False
-    print(f"Transformers not available: {e}")
-
-# Try to import sentence-transformers
-try:
-    from sentence_transformers import SentenceTransformer
-    SENTENCE_TRANSFORMERS_AVAILABLE = True
-except ImportError:
-    SENTENCE_TRANSFORMERS_AVAILABLE = False
-    print("SentenceTransformers not installed. Run: pip install sentence-transformers")
-
-# ============== Pydantic Models ==============
+# ============== Models ==============
 
 class ADRValidationRequest(BaseModel):
     title: str
@@ -83,7 +51,7 @@ class ADRValidationRequest(BaseModel):
     context: Optional[str] = None
 
 class SecurityRisk(BaseModel):
-    severity: str  # low, medium, high, critical
+    severity: str
     type: str
     description: str
     code_example: Optional[str] = None
@@ -114,438 +82,99 @@ class ADRValidationResponse(BaseModel):
 
 model = None
 tokenizer = None
-vector_db = None  # Renamed from qdrant_client to avoid shadowing
+vector_db = None
 embedding_model = None
-
-def find_adapter_path():
-    """Search for the fine-tuned adapter in multiple possible locations."""
-    possible_paths = [
-        "./models/qwen-adr-lora",
-        "../models/qwen-adr-lora",
-        "../fine-tuning/models/qwen-adr-lora",
-        "/root/AMD-Developer-Hackathon/models/qwen-adr-lora",
-        "/root/AMD-Developer-Hackathon/fine-tuning/models/qwen-adr-lora"
-    ]
-    for p in possible_paths:
-        if os.path.exists(os.path.join(p, "adapter_config.json")):
-            return p
-    return None
-
-adapter_path = find_adapter_path()
-
-# ============== Lifespan ==============
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialize models on startup."""
     global model, tokenizer, vector_db, embedding_model
+    print("Initializing API in Float32 Stability Mode...")
 
-    print("Initializing ADR Validator API...")
-
-    # Initialize Qdrant
+    # Qdrant
     qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
-    qdrant_api_key = os.getenv("QDRANT_API_KEY", None)
-
     try:
-        from qdrant_client import QdrantClient as QClient
-        if qdrant_api_key:
-            vector_db = QClient(url=qdrant_url, api_key=qdrant_api_key)
-        else:
-            vector_db = QClient(url=qdrant_url)
-
-        # Test connection
+        vector_db = QdrantClient(url=qdrant_url)
         vector_db.get_collections()
-        print(f"Connected to Qdrant at {qdrant_url}")
-    except Exception as e:
-        print(f"Qdrant not connected: {e}")
-        vector_db = None
+    except Exception: vector_db = None
 
-    # Initialize embedding model
-    if SENTENCE_TRANSFORMERS_AVAILABLE:
-        try:
-            from sentence_transformers import SentenceTransformer
-            embedding_model = SentenceTransformer("Qwen/Qwen3-Embedding-8B")
-            print("Loaded Qwen3-Embedding-8B embeddings")
-        except Exception as e:
-            print(f"Could not load embedding model: {e}")
-            print("Semantic search will use mock vectors on this hardware")
+    # Embeddings
+    try: embedding_model = SentenceTransformer("Qwen/Qwen3-Embedding-8B")
+    except Exception: embedding_model = None
 
-    # Initialize LLM (if available)
-    if TRANSFORMERS_AVAILABLE:
-        try:
-            print(f"Loading base model in native BF16...")
+    # LLM - FORCE FLOAT32 TO MATCH TRAINING
+    try:
+        base_model = "Qwen/Qwen3-8B"
+        model = AutoModelForCausalLM.from_pretrained(base_model, torch_dtype=torch.float32, device_map="auto", trust_remote_code=True)
+        tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
+        
+        adapter_path = "./models/qwen-adr-lora"
+        if not os.path.exists(adapter_path):
+            adapter_path = "../fine-tuning/models/qwen-adr-lora"
+            
+        if os.path.exists(adapter_path):
+            model = PeftModel.from_pretrained(model, adapter_path)
+            print(f"Adapter loaded from {adapter_path}")
+    except Exception as e: print(f"LLM Error: {e}")
 
-            base_model = "Qwen/Qwen3-8B"
-            model = AutoModelForCausalLM.from_pretrained(
-                base_model,
-                torch_dtype=torch.bfloat16,
-                device_map="auto",
-                trust_remote_code=True,
-            )
-            tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
-
-            if adapter_path:
-                print(f"Loading fine-tuned adapter from {adapter_path}...")
-                model = PeftModel.from_pretrained(model, adapter_path)
-                print("Adapter loaded successfully")
-            else:
-                print(f"No fine-tuned adapter found at {adapter_path}. Using base model.")
-
-            print("Model ready")
-        except Exception as e:
-            print(f"Could not load model: {e}")
-            model = None
-            tokenizer = None
-    else:
-        print("Transformers not available. Using rule-based validation.")
-
-    print("ADR Validator API ready!")
     yield
 
-# ============== FastAPI App ==============
-
-app = FastAPI(
-    title="ADR Security Validator API",
-    description="Validates Architecture Decision Records for contradictions and security risks",
-    version="1.0.0",
-    lifespan=lifespan
-)
-
-# CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["app://obsidian.md", "http://localhost", "https://localhost"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app = FastAPI(lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # ============== Detection Logic ==============
 
-def detect_technologies(content: str) -> List[str]:
-    """Detect mentioned technologies in the ADR."""
-    tech_keywords = {
-        "PostgreSQL": ["postgresql", "postgres"],
-        "MongoDB": ["mongodb", "mongo"],
-        "MySQL": ["mysql"],
-        "Redis": ["redis"],
-        "Kubernetes": ["kubernetes", "k8s"],
-        "Docker": ["docker", "container"],
-        "AWS": ["aws", "amazon web services"],
-        "Azure": ["azure"],
-        "GCP": ["gcp", "google cloud"],
-        "Python": ["python"],
-        "JavaScript": ["javascript", "node.js", "nodejs"],
-        "Go": ["golang", " go "],
-        "Rust": ["rust"],
-        "GraphQL": ["graphql"],
-        "REST": ["rest api", "restful"],
-        "gRPC": ["grpc"],
-        "Terraform": ["terraform"],
-        "Kafka": ["kafka"],
-        "RabbitMQ": ["rabbitmq"],
-    }
-
-    content_lower = content.lower()
-    detected = []
-
-    for tech, keywords in tech_keywords.items():
-        if any(kw in content_lower for kw in keywords):
-            detected.append(tech)
-
-    return detected
-
 def detect_security_risks(title: str, content: str) -> List[SecurityRisk]:
-    """Rule-based security risk detection."""
     risks = []
     combined = f"{title} {content}".lower()
-
-    # NoSQL Injection
-    if any(kw in combined for kw in ["mongodb", "mongo"]):
-        if "without validation" in combined or "no validation" in combined or "flexible schema" in combined:
-            risks.append(SecurityRisk(
-                severity="high",
-                type="nosql_injection",
-                description="MongoDB proposals often lack strict schema validation. Ensure input validation is implemented to prevent injection.",
-                secure_alternative='''# MongoDB with input validation
-from bson.objectid import ObjectId
-def get_user(user_id: str):
-    if not ObjectId.is_valid(user_id):
-        raise ValueError("Invalid ID format")
-    return db.users.find_one({"_id": ObjectId(user_id)})'''
-            ))
-
-    # SQL Injection patterns
-    if "postgresql" in combined or "mysql" in combined or "database" in combined:
-        if any(kw in combined for kw in ["string interpolation", "f-string query", "concat sql"]):
-            risks.append(SecurityRisk(
-                severity="critical",
-                type="sql_injection",
-                description="SQL queries should use parameterized queries, not string concatenation.",
-                secure_alternative='''# Parameterized query
-cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))'''
-            ))
-
-    # Secrets in plaintext
-    if any(kw in combined for kw in ["password", "secret", "api key", "credential", "config.py", ".env"]):
-        if any(kw in combined for kw in ["plaintext", "hardcoded", "in code", "file", "string", "stored"]):
-            risks.append(SecurityRisk(
-                severity="high",
-                type="hardcoded_credentials",
-                description="Credentials should be stored in secure vaults (Vault, Secrets Manager) or environment variables, never in code or local files.",
-                secure_alternative='''# Use environment variables
-import os
-api_key = os.environ.get('API_KEY')'''
-            ))
-            
-    # Insecure DB Communication
-    if "postgres" in combined or "database" in combined:
-        if "without ssl" in combined or "no ssl" in combined or "5432" in combined:
-            risks.append(SecurityRisk(
-                severity="medium",
-                type="insecure_db_comm",
-                description="Database communication should use SSL/TLS to prevent eavesdropping on the network.",
-                secure_alternative="Enable SSL in PostgreSQL and use sslmode=require in the connection string."
-            ))
-
+    if "mongodb" in combined and "validation" not in combined:
+        risks.append(SecurityRisk(severity="high", type="nosql_injection", description="MongoDB lacks strict validation in this ADR.", secure_alternative="Use Pydantic or JSON Schema validation."))
+    if "config.py" in combined or "password" in combined:
+        risks.append(SecurityRisk(severity="critical", type="hardcoded_secrets", description="Potential secrets in code/config detected.", secure_alternative="Use AWS Secrets Manager or Environment Variables."))
     return risks
 
-def detect_contradictions(title: str, content: str, related_adrs: List[RelatedADR]) -> List[Contradiction]:
-    """Detect contradictions with related ADRs."""
-    contradictions = []
-    combined = f"{title} {content}".lower()
-
-    for adr in related_adrs:
-        adr_lower = adr.title.lower()
-
-        # PostgreSQL vs MongoDB contradiction
-        if ("mongo" in combined or "nosql" in combined) and (adr_lower.find("postgresql") != -1 or adr_lower.find("sql") != -1):
-            if adr.status in ["accepted", "final"]:
-                contradictions.append(Contradiction(
-                    severity="high",
-                    related_adr_title=adr.title,
-                    description=f"This ADR contradicts {adr.title} which was {adr.status}. PostgreSQL is typically required for financial data integrity.",
-                    source=adr.category
-                ))
-
-    return contradictions
-
-def generate_recommendations(title: str, content: str, risks: List[SecurityRisk],
-                             contradictions: List[Contradiction]) -> List[str]:
-    """Generate recommendations based on analysis."""
-    recommendations = []
-
-    if contradictions:
-        recommendations.append("Review the related ADRs that this proposal contradicts before proceeding.")
-        recommendations.append("Consider if PostgreSQL with JSONB would satisfy the requirement while maintaining ACID guarantees.")
-
-    if risks:
-        recommendations.append("Address the identified security risks, focusing on input validation and secure storage.")
-
-    if not risks and not contradictions:
-        recommendations.append("No major issues detected. Consider adding more detail about failure scenarios.")
-
-    return recommendations
-
-# ============== API Endpoints ==============
-
-@app.get("/")
-async def root():
-    return {"message": "ADR Security Validator API", "version": "1.0.0"}
-
-@app.get("/health")
-async def health_check():
-    return {
-        "status": "ok",
-        "model_loaded": model is not None,
-        "qdrant_connected": vector_db is not None,
-        "embeddings_loaded": embedding_model is not None
-    }
+# ============== Endpoints ==============
 
 @app.post("/validate-adr", response_model=ADRValidationResponse)
 async def validate_adr(request: ADRValidationRequest):
-    """Validate an ADR for contradictions and security risks."""
-
-    # Search for related ADRs in Qdrant
     related_adrs = []
-    if vector_db:
+    if vector_db and embedding_model:
         try:
-            query_text = f"{request.title} {request.content}"
-            if embedding_model:
-                vector = embedding_model.encode(query_text).tolist()
-            else:
-                import hashlib
-                import random
-                hash_val = int(hashlib.md5(query_text.encode()).hexdigest()[:8], 16)
-                random.seed(hash_val % (2**32))
-                vector = [random.random() for _ in range(4096)]
-
-            # Modern Qdrant 1.7+ API with fallback and filtering
-            try:
-                query_response = vector_db.query_points(
-                    collection_name="adrs",
-                    query=vector,
-                    limit=15, # Get more to filter generic files
-                    with_payload=True
-                )
-                raw_results = query_response.points
-            except (AttributeError, Exception):
-                raw_results = vector_db.search(
-                    collection_name="adrs",
-                    query_vector=vector,
-                    limit=15,
-                    with_payload=True
-                )
-
-            for r in raw_results:
+            vector = embedding_model.encode(f"{request.title} {request.content}").tolist()
+            results = vector_db.search(collection_name="adrs", query_vector=vector, limit=10)
+            for r in results:
                 title = r.payload.get("title", "")
-                if title.lower() in ["index", "readme", "introduction", "table of contents", "adrs"]:
-                    continue
-                    
-                related_adrs.append(RelatedADR(
-                    title=title,
-                    similarity=float(r.score),
-                    status=r.payload.get("status", ""),
-                    category=r.payload.get("category", "")
-                ))
-                if len(related_adrs) >= 5: break
-                
-        except Exception as e:
-            print(f"Qdrant search error: {e}")
+                # FILTRO DE RUIDO
+                if any(kw in title.lower() for kw in ["meeting", "notes", "report", "annual", "agenda"]): continue
+                related_adrs.append(RelatedADR(title=title, similarity=float(r.score), status=r.payload.get("status", "accepted"), category=r.payload.get("category", "general")))
+        except Exception: pass
 
-    # Detect technologies
-    technologies = detect_technologies(request.content)
-
-    # Detect security risks
-    risks = detect_security_risks(request.title, request.content)
-
-    # If model is available, use it for enhanced analysis
     model_critique = ""
     if model and tokenizer:
         try:
-            context_parts = [f"Related ADR: {adr.title} ({adr.status})" for adr in related_adrs[:3]]
-            context_text = "\n".join(context_parts)
-
-            # Prompt exacto como el del entrenamiento
-            prompt = f"""<|system|>
-You are a senior Software Architect. Critique the following Architecture Decision Record (ADR) using the Well-Architected Framework and STRIDE methodology.
-Structure your response using clear Markdown headers (###), bold text, and bullet points. Be concise but technical.
-<|user|>
-ADR Title: {request.title}
-ADR Content: {request.content}
-Related ADRs:
-{context_text}
-<|assistant|>
-"""
-            inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048)
-            inputs = {k: v.to(model.device) for k, v in inputs.items()}
-
-            # Generación optimizada
+            prompt = f"<|system|>\nYou are a senior Architect. Review the ADR for security and consistency.\n<|user|>\nTitle: {request.title}\nContent: {request.content}\n<|assistant|>\n"
+            inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
             with torch.no_grad():
-                outputs = model.generate(
-                    **inputs, 
-                    max_new_tokens=512, 
-                    temperature=0.7,
-                    top_p=0.9,
-                    repetition_penalty=1.1,
-                    do_sample=True,
-                    pad_token_id=tokenizer.pad_token_id,
-                    eos_token_id=tokenizer.eos_token_id
-                )
-
-            # 1. Slice exacto para obtener SOLO la respuesta de la IA
-            prompt_length = inputs['input_ids'].shape[1]
-            generated_ids = outputs[0][prompt_length:]
-            model_critique = tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
+                outputs = model.generate(**inputs, max_new_tokens=400, temperature=0.1, repetition_penalty=1.2)
             
-            # 2. Limpieza de ruidos técnicos si persisten
-            for tag in ["<|", "|>", "assistant", "user", "system"]:
-                model_critique = model_critique.replace(tag, "")
-            
-            model_critique = model_critique.strip()
-            
-            # 3. Fallback si el modelo no genera nada coherente
-            if len(model_critique) < 10:
-                model_critique = "AI Analysis: The model could not generate a detailed critique. Please ensure the ADR content is sufficiently detailed."
-            
-            print(f"Model response received: {model_critique[:50]}...")
+            # Extract only response
+            model_critique = tokenizer.decode(outputs[0][inputs['input_ids'].shape[1]:], skip_special_tokens=True).strip()
+            # Clean Chinese/Tags
+            for noise in ["助理", "Assistant", "<|", "|>"]: model_critique = model_critique.replace(noise, "")
+        except Exception as e: model_critique = f"Inference error: {e}"
 
-        except Exception as e:
-            print(f"Model inference error: {e}")
-            model_critique = "AI Analysis: Error during model inference."
-
-    # Detect contradictions
-    contradictions = detect_contradictions(request.title, request.content, related_adrs)
-
-    # Generate recommendations
-    recommendations = generate_recommendations(request.title, request.content, risks, contradictions)
+    risks = detect_security_risks(request.title, request.content)
     
-    # Add AI analysis to recommendations
-    recommendations.insert(0, model_critique)
-
-    # Determine status based on risks AND AI Analysis
-    model_lower = model_critique.lower()
-    has_critical_ai = any(kw in model_lower for kw in ["critical", "vulnerability", "insecure", "flaw", "risk", "reject", "warning"])
+    # Status Logic
+    has_issue = len(risks) > 0 or any(kw in model_critique.lower() for kw in ["risk", "vulnerability", "reject", "critical", "warning"])
+    status = "needs_review" if has_issue else "approved"
     
-    if contradictions or any(r.severity in ["critical", "high"] for r in risks) or has_critical_ai:
-        status = "needs_review"
-        message = "Issues detected that require attention before approval."
-    elif risks:
-        status = "needs_minor_revision"
-        message = "Minor issues found. Consider addressing them."
-    else:
-        status = "approved"
-        message = "ADR appears sound."
-
     return ADRValidationResponse(
         status=status,
-        message=message,
-        contradictions=contradictions,
+        message="Issues detected" if has_issue else "ADR appears sound",
         security_risks=risks,
-        recommendations=recommendations,
-        related_adrs=related_adrs,
-        detected_technologies=technologies
+        recommendations=[model_critique.strip()] if model_critique else [],
+        related_adrs=related_adrs[:5]
     )
-
-@app.post("/index-adr")
-async def index_adr(title: str, content: str, status: str = "proposed",
-                   category: str = "general", source: str = "manual"):
-    """Index a new ADR in Qdrant."""
-
-    if not vector_db:
-        raise HTTPException(status_code=503, detail="Qdrant not connected")
-
-    try:
-        import uuid
-
-        if embedding_model:
-            vector = embedding_model.encode(f"{title}\n{content}").tolist()
-        else:
-            import hashlib, random
-            hash_val = int(hashlib.md5(f"{title}{content}".encode()).hexdigest()[:8], 16)
-            random.seed(hash_val % (2**32))
-            vector = [random.random() for _ in range(4096)]
-
-        from qdrant_client.models import PointStruct
-
-        point = PointStruct(
-            id=str(uuid.uuid4()),
-            vector=vector,
-            payload={
-                "title": title,
-                "content": content,
-                "status": status,
-                "category": category,
-                "source": source
-            }
-        )
-
-        vector_db.upsert(collection_name="adrs", points=[point])
-
-        return {"status": "success", "message": f"ADR '{title}' indexed successfully"}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
