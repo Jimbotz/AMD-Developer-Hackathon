@@ -287,13 +287,13 @@ cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))'''
             ))
 
     # Secrets in plaintext
-    if any(kw in combined for kw in ["password", "secret", "api key", "credential"]):
-        if "plaintext" in combined or "hardcoded" in combined or "in code" in combined:
+    if any(kw in combined for kw in ["password", "secret", "api key", "credential", "config.py"]):
+        if any(kw in combined for kw in ["plaintext", "hardcoded", "in code", "file", "string"]):
             risks.append(SecurityRisk(
                 severity="high",
                 type="hardcoded_credentials",
-                description="Credentials should be stored in secure vaults or environment variables, never in code.",
-                secure_alternative='''# Use environment variables or secrets manager
+                description="Credentials should be stored in secure vaults (Vault, Secrets Manager) or environment variables, never in code or local config files.",
+                secure_alternative='''# Use environment variables
 import os
 api_key = os.environ.get('API_KEY')'''
             ))
@@ -390,7 +390,6 @@ async def validate_adr(request: ADRValidationRequest):
                 )
 
             for r in results:
-
                 related_adrs.append(RelatedADR(
                     title=r.payload.get("title", ""),
                     similarity=float(r.score),
@@ -430,7 +429,12 @@ Related ADRs:
             with torch.no_grad():
                 outputs = model.generate(**inputs, max_new_tokens=512, temperature=0.1)
 
-            # model_critique = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            full_response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            if "<|assistant|>" in full_response:
+                model_critique = full_response.split("<|assistant|>")[-1].strip()
+            else:
+                model_critique = full_response.strip()
+            
             print(f"🤖 Model response received")
 
         except Exception as e:
@@ -441,6 +445,10 @@ Related ADRs:
 
     # Generate recommendations
     recommendations = generate_recommendations(request.title, request.content, risks, contradictions)
+    
+    # Add AI analysis to recommendations for visibility
+    if model_critique:
+        recommendations.insert(0, f"AI Analysis: {model_critique}")
 
     # Determine status
     if contradictions or any(r.severity in ["critical", "high"] for r in risks):
