@@ -1,8 +1,9 @@
-import { App, Modal, Setting, ButtonComponent } from 'obsidian';
+import { App, Modal, Setting, ButtonComponent, MarkdownRenderer } from 'obsidian';
 import { ADRValidationResponse, SecurityRisk, Contradiction, RelatedADR } from './api';
+import ADRValidatorPlugin from '../main';
 
 export class ValidatorModal extends Modal {
-    constructor(app: App, private result: ADRValidationResponse) {
+    constructor(app: App, private plugin: ADRValidatorPlugin, private result: ADRValidationResponse) {
         super(app);
     }
 
@@ -112,13 +113,22 @@ export class ValidatorModal extends Modal {
         if (recommendations.length === 0) return;
 
         contentEl.createEl('h3', {
-            text: '💡 Recommendations',
+            text: '💡 Recommendations & AI Analysis',
             cls: 'adr-section-title adr-section-info'
         });
 
-        const ul = contentEl.createEl('ul', 'adr-recommendations');
+        const container = contentEl.createDiv('adr-recommendations-container');
+        
         recommendations.forEach(rec => {
-            ul.createEl('li', { text: rec });
+            const item = container.createDiv('adr-recommendation-item');
+            
+            if (rec.includes('AI Analysis:')) {
+                item.addClass('adr-ai-critique');
+                const content = rec.replace('AI Analysis:', '').trim();
+                MarkdownRenderer.renderMarkdown(content, item, '', this.plugin);
+            } else {
+                MarkdownRenderer.renderMarkdown(rec, item, '', this.plugin);
+            }
         });
     }
 

@@ -427,7 +427,9 @@ async def validate_adr(request: ADRValidationRequest):
             context_text = "\n".join(context_parts)
 
             prompt = f"""<|system|>
-You are an expert in Architecture Decision Records (ADRs). Systematically critique the architecture. Identify security threats and provide actionable recommendations.
+You are a senior Software Architect. Critique the following Architecture Decision Record (ADR) using the Well-Architected Framework and STRIDE methodology.
+Structure your response using clear Markdown headers (###), bold text, and bullet points. 
+Be concise but technical.
 </|system|>
 <|user|>
 ADR Title: {request.title}

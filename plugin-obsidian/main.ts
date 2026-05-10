@@ -111,7 +111,7 @@ export default class ADRValidatorPlugin extends Plugin {
                 context: this.settings.additionalContext || undefined
             });
 
-            new ValidatorModal(this.app, result).open();
+            new ValidatorModal(this.app, this, result).open();
 
             const riskCount = result.security_risks?.length || 0;
             const contradictionCount = result.contradictions?.length || 0;

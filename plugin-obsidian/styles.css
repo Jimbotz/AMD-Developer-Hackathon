@@ -95,16 +95,35 @@
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
-.adr-recommendations {
-    padding-left: 20px;
+.adr-recommendations-container {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
-.adr-recommendations li {
-    margin-bottom: 8px;
+.adr-recommendation-item {
     color: var(--text-muted);
 }
 
-.adr-related li {
+.adr-ai-critique {
+    padding: 16px;
+    background: var(--background-primary-alt);
+    border: 1px solid var(--interactive-accent);
+    border-radius: 8px;
+    border-left: 4px solid var(--interactive-accent);
+}
+
+.adr-ai-critique h1, .adr-ai-critique h2, .adr-ai-critique h3 {
+    margin-top: 0;
+    color: var(--text-normal);
+}
+
+.adr-ai-critique ul {
+    margin-bottom: 0;
+}
+
+.adr-code-secure {
+
     margin-bottom: 6px;
 }
 
