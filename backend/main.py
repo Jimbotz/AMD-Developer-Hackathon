@@ -453,23 +453,26 @@ Related ADRs:
                     eos_token_id=tokenizer.eos_token_id
                 )
 
-            full_response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            # 1. Slice exacto para obtener SOLO la respuesta de la IA
+            prompt_length = inputs['input_ids'].shape[1]
+            generated_ids = outputs[0][prompt_length:]
+            model_critique = tokenizer.decode(generated_ids, skip_special_tokens=True).strip()
             
-            # Limpieza profunda de tags residuales
-            model_critique = full_response
-            if "<|assistant|>" in full_response:
-                model_critique = full_response.split("<|assistant|>")[-1].strip()
-            
-            # Remover ruidos de tags que el modelo pueda alucinar
-            for tag in ["<|start of output|>", "<|end of output|>", "<|assistant|>", "<|user|>", "<|system|>"]:
+            # 2. Limpieza de ruidos técnicos si persisten
+            for tag in ["<|", "|>", "assistant", "user", "system"]:
                 model_critique = model_critique.replace(tag, "")
             
             model_critique = model_critique.strip()
             
-            print(f"Model response received")
+            # 3. Fallback si el modelo no genera nada coherente
+            if len(model_critique) < 10:
+                model_critique = "AI Analysis: The model could not generate a detailed critique. Please ensure the ADR content is sufficiently detailed."
+            
+            print(f"Model response received: {model_critique[:50]}...")
 
         except Exception as e:
             print(f"Model inference error: {e}")
+            model_critique = "AI Analysis: Error during model inference."
 
     # Detect contradictions
     contradictions = detect_contradictions(request.title, request.content, related_adrs)
@@ -477,12 +480,12 @@ Related ADRs:
     # Generate recommendations
     recommendations = generate_recommendations(request.title, request.content, risks, contradictions)
     
-    # Add AI analysis to recommendations for visibility
-    if model_critique:
-        recommendations.insert(0, f"AI Analysis: {model_critique}")
+    # Add AI analysis to recommendations
+    recommendations.insert(0, model_critique)
 
     # Determine status based on risks AND AI Analysis
-    has_critical_ai = any(kw in model_critique.lower() for kw in ["critical flaw", "vulnerability", "insecure", "flaw"])
+    model_lower = model_critique.lower()
+    has_critical_ai = any(kw in model_lower for kw in ["critical", "vulnerability", "insecure", "flaw", "risk", "reject", "warning"])
     
     if contradictions or any(r.severity in ["critical", "high"] for r in risks) or has_critical_ai:
         status = "needs_review"
