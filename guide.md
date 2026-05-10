@@ -46,12 +46,23 @@ pip uninstall -y transformers torchao unsloth
 ### B. Instalación de Versiones Estables:
 Instalamos la "versión dorada" (4.51.0) que soporta Qwen3 sin los bugs de tipos de tensores:
 ```bash
-pip install "transformers==4.51.0" accelerate einops "sentence-transformers>=2.7.0" trl
+pip install "transformers==4.51.0" accelerate einops "sentence-transformers>=2.7.0" trl gunicorn
 ```
 
 ---
 
-## 4. Autenticación en Hugging Face
+## 4. Iniciar la API Backend (Gunicorn + Stable Settings)
+Para un despliegue estable en AMD Cloud, se recomienda usar **Gunicorn** con un tiempo de espera (timeout) extendido, ya que el modelo Qwen3-8B toma tiempo en cargarse e inferir sobre la GPU.
+
+```bash
+cd backend
+# Iniciar servidor con 5 min de timeout y un solo trabajador para maximizar potencia GPU
+gunicorn main:app -w 1 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --timeout 300
+```
+
+---
+
+## 5. Autenticación en Hugging Face
 Para evitar límites de descarga y mensajes de advertencia, usa la nueva herramienta `hf`:
 
 ```bash
@@ -61,18 +72,18 @@ hf auth login --token "tu_token_aqui"
 
 ---
 
-## 5. Solución de Errores Comunes (Workarounds)
+## 6. Solución de Errores Comunes (Workarounds)
 
 ### Error: `AttributeError: module 'torch' has no attribute 'int1'`
-Este error ocurre porque `torchao` busca funciones que no están en el PyTorch de ROCm. El proyecto ya incluye un parche automático en `backend/main.py` y `backend/qdrant_setup.py`.
+Este error ocurre porque `torchao` busca funciones que no están en el PyTorch de ROCm. El proyecto ya incluye un parche automático en `backend/main.py`.
 
 ### Error: `TypeError: infer_schema() takes 1 positional argument but 3 were given`
-Corregido mediante un parche de bajo nivel en el código que intercepta las llamadas de `transformers` y registra correctamente las operaciones en la GPU AMD.
+Corregido mediante un parche de bajo nivel en el código que intercepta las llamadas de `transformers`.
 
 ---
 
-## 6. Verificación del Sistema
-Una vez que el servidor esté corriendo (`uvicorn main:app --host 0.0.0.0 --port 8000`), puedes verificar que todo funciona con este script de prueba:
+## 7. Verificación del Sistema
+Una vez que el servidor esté corriendo, puedes verificar que todo funciona con este script de prueba. El tiempo estimado de respuesta es de **30 a 60 segundos** debido a la profundidad del análisis de la IA.
 
 ```python
 import requests, json

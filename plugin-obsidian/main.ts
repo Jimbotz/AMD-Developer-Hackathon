@@ -103,7 +103,7 @@ export default class ADRValidatorPlugin extends Plugin {
         const title = titleMatch ? titleMatch[1] : 'Untitled ADR';
 
         // Show persistent loading notice
-        const loadingNotice = new Notice('🧠 AI Architect is analyzing your ADR...\nEstimated time: 5-8 seconds', 0);
+        const loadingNotice = new Notice('🧠 AI Architect is analyzing your ADR...\nEstimated time: 30-60 seconds', 0);
         
         try {
             const startTime = Date.now();
