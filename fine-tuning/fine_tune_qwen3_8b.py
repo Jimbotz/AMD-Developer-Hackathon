@@ -1,6 +1,6 @@
 """
-Fine-tuning Script for Qwen3-8B - PERFORMANCE VERSION
-Optimized for AMD MI300X - BF16 Native
+Fine-tuning Script for Qwen3-8B - ULTIMATE STABILITY VERSION
+Optimized for AMD MI300X - Anti-Explosion measures
 """
 
 import os
@@ -51,7 +51,7 @@ from datasets import load_dataset, Dataset
 
 # Configuration
 MODEL_NAME = "Qwen/Qwen3-8B"
-MAX_SEQ_LENGTH = 4096
+MAX_SEQ_LENGTH = 2048 # Back to 2048 to reduce memory pressure
 OUTPUT_DIR = "./models/qwen-adr-lora"
 DATASET_PATH = "training-data.jsonl"
 
@@ -62,28 +62,28 @@ is_rocm = check_amd_rocm()
 
 # LoRA configuration
 LORA_CONFIG = {
-    "r": 16,
-    "lora_alpha": 32,
-    "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-    "lora_dropout": 0.05,
+    "r": 8, # Reduced rank for stability
+    "lora_alpha": 16,
+    "target_modules": ["q_proj", "v_proj"], # Minimal targets for stability
+    "lora_dropout": 0.0,
     "bias": "none",
 }
 
-# PERFORMANCE TRAINING ARGS
+# ULTIMATE STABILITY ARGS
 TRAINING_ARGS = {
-    "num_train_epochs": 3,
-    "per_device_train_batch_size": 4,
-    "gradient_accumulation_steps": 4,
-    "warmup_steps": 50,                # Warmup rápido de 50 pasos
-    "logging_steps": 5,
-    "save_steps": 50,
-    "learning_rate": 5e-5,             # LR equilibrada (antes era demasiado baja)
-    "weight_decay": 0.01,
+    "num_train_epochs": 1, # Start with 1 epoch to verify
+    "per_device_train_batch_size": 1,
+    "gradient_accumulation_steps": 16,
+    "warmup_steps": 100,
+    "logging_steps": 1,
+    "save_steps": 100,
+    "learning_rate": 5e-6, # Ultra low LR
+    "weight_decay": 0.1,   # High regularization
     "optim": "adamw_torch",
-    "lr_scheduler_type": "cosine",
+    "lr_scheduler_type": "constant", # No changes to LR
     "seed": 42,
     "output_dir": OUTPUT_DIR,
-    "max_grad_norm": 1.0,
+    "max_grad_norm": 0.1, # Extreme clipping
 }
 
 def load_and_prepare_dataset(dataset_path: str):
@@ -93,7 +93,7 @@ def load_and_prepare_dataset(dataset_path: str):
     return Dataset.from_list(training_examples)
 
 def load_model():
-    dtype = torch.bfloat16 if is_rocm else torch.float16 # BACK TO BF16
+    dtype = torch.float32 if is_rocm else torch.float16 # USE FLOAT32 FOR ABSOLUTE PRECISION
     
     if UNSLOTH_AVAILABLE:
         try:
@@ -119,12 +119,10 @@ def load_model():
     return get_peft_model(model, peft_config), tokenizer
 
 def train_model(model, tokenizer, dataset):
-    if UNSLOTH_AVAILABLE:
-        from unsloth import UnslothTrainer, UnslothTrainingArguments
-        trainer = UnslothTrainer(model=model, tokenizer=tokenizer, train_dataset=dataset, args=UnslothTrainingArguments(**TRAINING_ARGS, bf16=True, fp16=False, report_to="none"))
-    else:
-        from trl import SFTTrainer, SFTConfig
-        trainer = SFTTrainer(model=model, train_dataset=dataset, processing_class=tokenizer, args=SFTConfig(**TRAINING_ARGS, bf16=True, fp16=False, report_to="none", remove_unused_columns=False, dataset_text_field="text"))
+    from trl import SFTTrainer, SFTConfig
+    # FORCE FLOAT32 TRAINING
+    sft_config = SFTConfig(**TRAINING_ARGS, bf16=False, fp16=False, report_to="none", remove_unused_columns=False, dataset_text_field="text")
+    trainer = SFTTrainer(model=model, train_dataset=dataset, processing_class=tokenizer, args=sft_config)
     trainer.train()
     return trainer
 
