@@ -12,7 +12,7 @@ import os
 import sys
 from pathlib import Path
 
-# Check if running on AMD ROCm
+# Check AMD ROCm first — needed to configure everything else
 def check_amd_rocm():
     if os.path.exists("/dev/kfd"):
         print("✅ AMD ROCm detected")
@@ -22,18 +22,44 @@ def check_amd_rocm():
 
 is_rocm = check_amd_rocm()
 
-# Import Unsloth
+# Detect broken transformers custom-op on ROCm (grouped_mm_fallback type error)
+_ROCM_BROKEN_TRANSFORMERS = False
+def _check_transformers_works():
+    global _ROCM_BROKEN_TRANSFORMERS
+    try:
+        import torch
+        import importlib
+        importlib.import_module("transformers.modeling_utils")
+        return True
+    except ValueError as e:
+        if "grouped_mm_fallback" in str(e):
+            _ROCM_BROKEN_TRANSFORMERS = True
+            return False
+    except Exception:
+        pass
+    return True
+
+# Probe transformers import on ROCm early, before any standard transformers code runs
+if is_rocm:
+    if not _check_transformers_works():
+        print("⚠️  ROCm PyTorch build has incompatible transformers custom op (grouped_mm_fallback)")
+        print("   Standard transformers path is disabled on this hardware")
+        print("   Fine-tuning will use Unsloth only")
+
+# Import Unsloth FIRST — must be before any transformers imports per Unsloth docs
+# Unsloth patches torch before transformers loads to apply its optimizations
+UNSLOTH_AVAILABLE = False
 try:
+    import torch
+    import unsloth
     from unsloth import FastLanguageModel
     from unsloth import UnslothTrainer, UnslothTrainingArguments
     UNSLOTH_AVAILABLE = True
     print("✅ Unsloth available")
-except ImportError:
-    UNSLOTH_AVAILABLE = False
-    print("⚠️  Unsloth not available. Install with:")
-    print("   pip install unsloth")
+except ImportError as e:
+    print(f"⚠️  Unsloth not available: {e}")
+    print("   Install: pip install \"unsloth[rocm] @ git+https://github.com/unslothai/unsloth.git\"")
 
-import torch
 import json
 from datasets import load_dataset, Dataset
 
@@ -45,8 +71,8 @@ DATASET_PATH = "./fine-tuning/training-data.jsonl"
 
 # LoRA Configuration - optimized for MI300X
 LORA_CONFIG = {
-    "r": 16,  # LoRA rank - higher = more capacity, more memory
-    "lora_alpha": 32,  # Scaling factor
+    "r": 16,
+    "lora_alpha": 32,
     "lora_dropout": 0.05,
     "target_modules": [
         "q_proj", "k_proj", "v_proj", "o_proj",
@@ -60,10 +86,10 @@ LORA_CONFIG = {
 TRAINING_ARGS = {
     "output_dir": OUTPUT_DIR,
     "num_train_epochs": 3,
-    "per_device_train_batch_size": 4,  # Adjust based on GPU memory
+    "per_device_train_batch_size": 4,
     "gradient_accumulation_steps": 4,
     "learning_rate": 2e-4,
-    "optim": "adamw_8bit",  # Memory-efficient optimizer
+    "optim": "adamw_8bit",
     "weight_decay": 0.01,
     "warmup_ratio": 0.03,
     "lr_scheduler_type": "cosine",
@@ -77,7 +103,6 @@ def format_chat_template(example):
     """Format dataset for Qwen3 chat template."""
     messages = example.get("messages", [])
 
-    # Build conversation string
     conversation = ""
     for msg in messages:
         role = msg["role"]
@@ -89,7 +114,6 @@ def format_chat_template(example):
         elif role == "assistant":
             conversation += f"<|assistant|>\n{content}\n"
 
-    # Add EOS token
     conversation += "<|assistant|>\n"
 
     return {"text": conversation}
@@ -102,7 +126,6 @@ def load_and_prepare_dataset(dataset_path: str):
 
     print(f"   Loaded {len(dataset)} examples")
 
-    # Format with chat template
     dataset = dataset.map(format_chat_template, remove_columns=dataset.column_names)
 
     print(f"   Dataset prepared for training")
@@ -114,25 +137,26 @@ def load_model():
     """Load Qwen3-8B with QLoRA configuration."""
     print(f"\n🔄 Loading model: {MODEL_NAME}")
 
-    # Determine dtype
-    dtype = torch.bfloat16 if is_rocm else torch.float16
+    if _ROCM_BROKEN_TRANSFORMERS and not UNSLOTH_AVAILABLE:
+        raise RuntimeError(
+            "ROCm transformers build is broken (grouped_mm_fallback custom op) and Unsloth is not installed.\n"
+            "Fix: pip install \"unsloth[rocm] @ git+https://github.com/unslothai/unsloth.git\""
+        )
+
+    dtype = "bfloat16" if is_rocm else "float16"
 
     if UNSLOTH_AVAILABLE:
-        # Use Unsloth for optimal AMD performance
         model, tokenizer = FastLanguageModel.from_pretrained(
             model_name=MODEL_NAME,
             max_seq_length=MAX_SEQ_LENGTH,
-            load_in_4bit=False,  # Native BF16 for MI300X
+            load_in_4bit=False,
             dtype=dtype,
             trust_remote_code=True,
         )
-
-        # Apply LoRA
         model = FastLanguageModel.get_peft_model(model, **LORA_CONFIG)
-
         print("✅ Model loaded with Unsloth optimizations (Native BF16)")
     else:
-        # Fallback to standard transformers
+        # Standard transformers path — only reached on non-ROCm or if ROCm transformers works
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         model = AutoModelForCausalLM.from_pretrained(
@@ -145,7 +169,6 @@ def load_model():
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
         tokenizer.pad_token = tokenizer.eos_token
 
-        # Apply LoRA using PEFT
         from peft import LoraConfig, get_peft_model, TaskType
 
         peft_config = LoraConfig(
@@ -160,7 +183,6 @@ def load_model():
         model = get_peft_model(model, peft_config)
         print("✅ Model loaded with standard PEFT")
 
-    # Print trainable parameters
     model.print_trainable_parameters()
 
     return model, tokenizer
@@ -170,11 +192,10 @@ def train_model(model, tokenizer, dataset):
     print("\n🚀 Starting training...")
 
     if UNSLOTH_AVAILABLE:
-        # Use Unsloth trainer for optimal AMD performance
         training_args = UnslothTrainingArguments(
             **TRAINING_ARGS,
-            bf16=is_rocm,  # Use BF16 on AMD ROCm
-            fp16=not is_rocm,  # Use FP16 on CUDA
+            bf16=is_rocm,
+            fp16=not is_rocm,
             report_to="none",
         )
 
@@ -185,7 +206,6 @@ def train_model(model, tokenizer, dataset):
             args=training_args,
         )
     else:
-        # Use standard TRL SFTTrainer
         from trl import SFTTrainer, SFTConfig
 
         sft_config = SFTConfig(
@@ -204,7 +224,6 @@ def train_model(model, tokenizer, dataset):
             dataset_text_field="text",
         )
 
-    # Train
     print("   Training started (this may take 1-2 hours on MI300X)...")
     trainer.train()
 
@@ -227,23 +246,18 @@ def main():
     print("ADR Validator - Qwen3-8B Fine-tuning")
     print("="*60)
 
-    # Check for dataset
     dataset_path = Path(DATASET_PATH)
     if not dataset_path.exists():
         print(f"\n❌ Dataset not found at {DATASET_PATH}")
         print("   Run generate_dataset.py first to create the training data")
         sys.exit(1)
 
-    # Load dataset
     dataset = load_and_prepare_dataset(DATASET_PATH)
 
-    # Load model
     model, tokenizer = load_model()
 
-    # Train
     trainer = train_model(model, tokenizer, dataset)
 
-    # Save
     save_model(model, tokenizer)
 
     print("\n" + "="*60)

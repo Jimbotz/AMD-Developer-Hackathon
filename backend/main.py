@@ -15,14 +15,36 @@ from qdrant_client import QdrantClient
 import json
 from pathlib import Path
 
+# Check for ROCm + broken transformers custom op (grouped_mm_fallback type error)
+def _is_rocm_transformers_broken():
+    """Detect ROCm incompatibility with transformers custom op registration."""
+    if not os.path.exists("/dev/kfd"):
+        return False
+    try:
+        import torch
+        import importlib
+        m = importlib.import_module("transformers.modeling_utils")
+        return False
+    except ValueError as e:
+        if "grouped_mm_fallback" in str(e):
+            return True
+    except Exception:
+        pass
+    return False
+
+_ROCM_TRANSFORMERS_BROKEN = _is_rocm_transformers_broken()
+
 # Try to import transformers, handle gracefully if not available
 try:
+    if _ROCM_TRANSFORMERS_BROKEN:
+        raise ImportError("ROCm transformers custom op broken on this PyTorch build")
     from transformers import AutoModelForCausalLM, AutoTokenizer
     from peft import PeftModel
     TRANSFORMERS_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     TRANSFORMERS_AVAILABLE = False
-    print("⚠️  Transformers not installed. Run: pip install transformers")
+    print(f"⚠️  Transformers not available: {e}")
+    print("   Run: pip install transformers (ROCm-compatible build required)")
 
 # Try to import sentence-transformers
 try:
@@ -104,10 +126,12 @@ async def lifespan(app: FastAPI):
     # Initialize embedding model
     if SENTENCE_TRANSFORMERS_AVAILABLE:
         try:
+            from sentence_transformers import SentenceTransformer
             embedding_model = SentenceTransformer("Qwen/Qwen3-embed-8b")
             print("✅ Loaded Qwen3-embed-8b embeddings")
         except Exception as e:
             print(f"⚠️  Could not load embedding model: {e}")
+            print("ℹ️  Semantic search will use mock vectors on this hardware")
 
     # Initialize LLM (if available)
     if TRANSFORMERS_AVAILABLE:
