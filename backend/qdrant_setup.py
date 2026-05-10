@@ -7,6 +7,28 @@ import json
 import os
 import uuid
 from pathlib import Path
+
+# --- GLOBAL ROCM WORKAROUND ---
+# This must run before ANY transformers/torch imports
+import typing
+from typing import Union, List, Optional, Sequence
+import torch
+
+# Force registration of types that cause the grouped_mm_fallback bug on ROCm
+if not hasattr(typing, 'Union'):
+    typing.Union = Union
+if not hasattr(typing, 'List'):
+    typing.List = List
+
+# Some ROCm builds of torch 2.4/2.5 have a bug where they don't recognize 
+# their own Tensor type in custom_op type hints.
+try:
+    import torch._custom_op
+    import torch._library.infer_schema
+except:
+    pass
+# ------------------------------
+
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance, VectorParams, PointStruct,
@@ -127,11 +149,7 @@ def extract_adrs_from_files(base_path: Path):
     return adrs
 
 def generate_mock_embedding(text: str) -> list:
-    """Generate a mock embedding vector for demo purposes.
-
-    NOTE: In production, use Qwen3-embed-8b or similar model.
-    For now, we generate a deterministic pseudo-embedding based on text.
-    """
+    """Generate a mock embedding vector for demo purposes."""
     import hashlib
     hash_val = int(hashlib.md5(text.encode()).hexdigest()[:8], 16)
     import random
@@ -144,28 +162,17 @@ def index_adrs(client: QdrantClient, adrs: list, use_embedded_model: bool = Fals
     if use_embedded_model:
         print("📦 Initializing embedding model...")
         
-        # Aggressive workaround for ROCm type registration bug
-        try:
-            import typing
-            from typing import Union, List, Optional, Sequence
-            import torch
-            # Pre-register types in global namespace to avoid registration errors
-            globals()['torch'] = torch
-            globals()['Tensor'] = torch.Tensor
-        except:
-            pass
-
-        # Try standard Transformers first (most reliable if architecture is supported)
         try:
             from transformers import AutoModel, AutoTokenizer
-            print("🔄 Loading Qwen3-Embedding-8B via Transformers (Native)...")
+            print("🔄 Loading Qwen3-Embedding-8B via Transformers (Native + ROCm Fix)...")
             
             tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-Embedding-8B", trust_remote_code=True)
             model = AutoModel.from_pretrained(
                 "Qwen/Qwen3-Embedding-8B", 
                 trust_remote_code=True, 
-                torch_dtype=torch.bfloat16,
-                device_map="auto"
+                dtype=torch.bfloat16,
+                device_map="auto",
+                attn_implementation="eager" 
             )
             
             class SimpleEmbedder:
@@ -193,7 +200,7 @@ def index_adrs(client: QdrantClient, adrs: list, use_embedded_model: bool = Fals
         text_to_embed = f"{adr['title']}\n{adr['content']}"
 
         if embedding_model:
-            vector = embedding_model.encode(text_to_embed).tolist()
+            vector = embedding_model.encode(text_to_embed).tolist()[0]
         else:
             vector = generate_mock_embedding(text_to_embed)
 
@@ -228,16 +235,35 @@ def search_adrs(client: QdrantClient, query: str, category: str = None,
     embedding_model = None
     if use_embedded_model:
         try:
-            # Workaround for Python 3.12 + Transformers 4.45+ type hint bug on ROCm
-            from typing import Union, List, Optional, Sequence
-            import torch
-            from sentence_transformers import SentenceTransformer
-            embedding_model = SentenceTransformer("Qwen/Qwen3-Embedding-8B")
+            from transformers import AutoModel, AutoTokenizer
+            tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-Embedding-8B", trust_remote_code=True)
+            model = AutoModel.from_pretrained(
+                "Qwen/Qwen3-Embedding-8B", 
+                trust_remote_code=True, 
+                dtype=torch.bfloat16,
+                device_map="auto",
+                attn_implementation="eager"
+            )
+            
+            class SimpleEmbedder:
+                def __init__(self, model, tokenizer):
+                    self.model = model
+                    self.tokenizer = tokenizer
+                def encode(self, sentences):
+                    if isinstance(sentences, str):
+                        sentences = [sentences]
+                    inputs = self.tokenizer(sentences, padding=True, truncation=True, return_tensors="pt", max_length=2048).to(self.model.device)
+                    with torch.no_grad():
+                        outputs = self.model(**inputs)
+                    embeddings = outputs.last_hidden_state.mean(dim=1)
+                    return embeddings.cpu().numpy()
+            
+            embedding_model = SimpleEmbedder(model, tokenizer)
         except Exception:
             pass
 
     if embedding_model:
-        vector = embedding_model.encode(query).tolist()
+        vector = embedding_model.encode(query).tolist()[0]
     else:
         vector = generate_mock_embedding(query)
 
