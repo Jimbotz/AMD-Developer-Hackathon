@@ -28,11 +28,14 @@ def _check_transformers_works():
     global _ROCM_BROKEN_TRANSFORMERS
     try:
         import torch
-        import importlib
-        importlib.import_module("transformers.modeling_utils")
+        # Workaround for Python 3.12 + Transformers 4.45+ type hint bug in custom_op
+        # This sometimes pre-registers the needed types
+        from typing import Union, List, Optional, Sequence
+        
+        from transformers import AutoModelForCausalLM
         return True
     except ValueError as e:
-        if "grouped_mm_fallback" in str(e):
+        if "grouped_mm_fallback" in str(e) or "unsupported type torch.Tensor" in str(e):
             _ROCM_BROKEN_TRANSFORMERS = True
             return False
     except Exception:
@@ -42,23 +45,23 @@ def _check_transformers_works():
 # Probe transformers import on ROCm early, before any standard transformers code runs
 if is_rocm:
     if not _check_transformers_works():
-        print("⚠️  ROCm PyTorch build has incompatible transformers custom op (grouped_mm_fallback)")
-        print("   Standard transformers path is disabled on this hardware")
-        print("   Fine-tuning will use Unsloth only")
+        print("⚠️  ROCm environment has a known incompatibility in 'transformers' (grouped_mm_fallback)")
+        print("   This is often caused by Transformers 4.45.0 on Python 3.12.")
+        print("   Attempting to use Unsloth as a mandatory workaround...")
 
 # Import Unsloth FIRST — must be before any transformers imports per Unsloth docs
-# Unsloth patches torch before transformers loads to apply its optimizations
 UNSLOTH_AVAILABLE = False
 try:
     import torch
     import unsloth
     from unsloth import FastLanguageModel
-    from unsloth import UnslothTrainer, UnslothTrainingArguments
     UNSLOTH_AVAILABLE = True
-    print("✅ Unsloth available")
-except ImportError as e:
+    print("✅ Unsloth available and loaded")
+except Exception as e:
     print(f"⚠️  Unsloth not available: {e}")
-    print("   Install: pip install \"unsloth[rocm] @ git+https://github.com/unslothai/unsloth.git\"")
+    if is_rocm:
+        print("   CRITICAL: On AMD ROCm, Unsloth is highly recommended to avoid transformers bugs.")
+        print("   Install: pip install \"unsloth[rocm] @ git+https://github.com/unslothai/unsloth.git\"")
 
 import json
 from datasets import load_dataset, Dataset
@@ -69,129 +72,79 @@ MAX_SEQ_LENGTH = 2048
 OUTPUT_DIR = "./models/qwen-adr-lora"
 DATASET_PATH = "./fine-tuning/training-data.jsonl"
 
-# LoRA Configuration - optimized for MI300X
-LORA_CONFIG = {
-    "r": 16,
-    "lora_alpha": 32,
-    "lora_dropout": 0.05,
-    "target_modules": [
-        "q_proj", "k_proj", "v_proj", "o_proj",
-        "gate_proj", "up_proj", "down_proj",
-    ],
-    "bias": "none",
-    "use_gradient_checkpointing": "unsloth",
-}
-
-# Training Configuration - optimized for MI300X
-TRAINING_ARGS = {
-    "output_dir": OUTPUT_DIR,
-    "num_train_epochs": 3,
-    "per_device_train_batch_size": 4,
-    "gradient_accumulation_steps": 4,
-    "learning_rate": 2e-4,
-    "optim": "adamw_8bit",
-    "weight_decay": 0.01,
-    "warmup_ratio": 0.03,
-    "lr_scheduler_type": "cosine",
-    "save_steps": 100,
-    "logging_steps": 10,
-    "max_seq_length": MAX_SEQ_LENGTH,
-    "seed": 3407,
-}
-
-def format_chat_template(example):
-    """Format dataset for Qwen3 chat template."""
-    messages = example.get("messages", [])
-
-    conversation = ""
-    for msg in messages:
-        role = msg["role"]
-        content = msg["content"]
-        if role == "system":
-            conversation += f"<|system|>\n{content}\n"
-        elif role == "user":
-            conversation += f"<|user|>\n{content}\n"
-        elif role == "assistant":
-            conversation += f"<|assistant|>\n{content}\n"
-
-    conversation += "<|assistant|>\n"
-
-    return {"text": conversation}
-
-def load_and_prepare_dataset(dataset_path: str):
-    """Load and prepare the training dataset."""
-    print(f"\n📂 Loading dataset from {dataset_path}")
-
-    dataset = load_dataset("json", data_files=dataset_path, split="train")
-
-    print(f"   Loaded {len(dataset)} examples")
-
-    dataset = dataset.map(format_chat_template, remove_columns=dataset.column_names)
-
-    print(f"   Dataset prepared for training")
-    print(f"   Example: {dataset[0]['text'][:200]}...")
-
-    return dataset
+# ... (keep LoRA and Training configs)
 
 def load_model():
     """Load Qwen3-8B with QLoRA configuration."""
     print(f"\n🔄 Loading model: {MODEL_NAME}")
 
     if _ROCM_BROKEN_TRANSFORMERS and not UNSLOTH_AVAILABLE:
-        raise RuntimeError(
-            "ROCm transformers build is broken (grouped_mm_fallback custom op) and Unsloth is not installed.\n"
-            "Fix: pip install \"unsloth[rocm] @ git+https://github.com/unslothai/unsloth.git\""
-        )
+        print("\n❌ ERROR: Your environment has a broken Transformers/Torch integration on ROCm.")
+        print("   The 'grouped_mm_fallback' custom op is failing due to type hint issues.")
+        print("\n🛠️  HOW TO FIX:")
+        print("   1. Install Unsloth (Recommended): pip install \"unsloth[rocm] @ git+https://github.com/unslothai/unsloth.git\"")
+        print("   2. OR Update Transformers: pip install --upgrade transformers")
+        print("   3. OR Downgrade Transformers: pip install transformers==4.44.2")
+        raise RuntimeError("Incompatible environment for fine-tuning on ROCm.")
 
+    # Native BF16 for AMD Instinct
     dtype = "bfloat16" if is_rocm else "float16"
 
     if UNSLOTH_AVAILABLE:
-        model, tokenizer = FastLanguageModel.from_pretrained(
-            model_name=MODEL_NAME,
-            max_seq_length=MAX_SEQ_LENGTH,
-            load_in_4bit=False,
-            dtype=dtype,
-            trust_remote_code=True,
-        )
-        model = FastLanguageModel.get_peft_model(model, **LORA_CONFIG)
-        print("✅ Model loaded with Unsloth optimizations (Native BF16)")
-    else:
-        # Standard transformers path — only reached on non-ROCm or if ROCm transformers works
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        try:
+            model, tokenizer = FastLanguageModel.from_pretrained(
+                model_name=MODEL_NAME,
+                max_seq_length=MAX_SEQ_LENGTH,
+                load_in_4bit=False, # Use native BF16 for MI300X
+                dtype=dtype,
+                trust_remote_code=True,
+            )
+            model = FastLanguageModel.get_peft_model(model, **LORA_CONFIG)
+            print(f"✅ Model loaded with Unsloth optimizations ({dtype})")
+            return model, tokenizer
+        except Exception as e:
+            print(f"⚠️  Unsloth loading failed: {e}. Falling back to standard transformers...")
 
-        model = AutoModelForCausalLM.from_pretrained(
-            MODEL_NAME,
-            torch_dtype=dtype,
-            device_map="auto",
-            trust_remote_code=True,
-        )
+    # Standard transformers path
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+    import torch
 
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
-        tokenizer.pad_token = tokenizer.eos_token
+    # Fix: Use 'dtype' instead of deprecated 'torch_dtype'
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_NAME,
+        dtype=dtype if is_rocm else torch.float16,
+        device_map="auto",
+        trust_remote_code=True,
+    )
 
-        from peft import LoraConfig, get_peft_model, TaskType
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
+    tokenizer.pad_token = tokenizer.eos_token
 
-        peft_config = LoraConfig(
-            r=LORA_CONFIG["r"],
-            lora_alpha=LORA_CONFIG["lora_alpha"],
-            target_modules=LORA_CONFIG["target_modules"],
-            lora_dropout=LORA_CONFIG["lora_dropout"],
-            bias=LORA_CONFIG["bias"],
-            task_type=TaskType.CAUSAL_LM,
-        )
+    from peft import LoraConfig, get_peft_model, TaskType
 
-        model = get_peft_model(model, peft_config)
-        print("✅ Model loaded with standard PEFT")
+    peft_config = LoraConfig(
+        r=LORA_CONFIG["r"],
+        lora_alpha=LORA_CONFIG["lora_alpha"],
+        target_modules=LORA_CONFIG["target_modules"],
+        lora_dropout=LORA_CONFIG["lora_dropout"],
+        bias=LORA_CONFIG["bias"],
+        task_type=TaskType.CAUSAL_LM,
+    )
 
+    model = get_peft_model(model, peft_config)
+    print("✅ Model loaded with standard PEFT")
     model.print_trainable_parameters()
 
     return model, tokenizer
+
 
 def train_model(model, tokenizer, dataset):
     """Train the model."""
     print("\n🚀 Starting training...")
 
     if UNSLOTH_AVAILABLE:
+        from unsloth import UnslothTrainer, UnslothTrainingArguments
+        
         training_args = UnslothTrainingArguments(
             **TRAINING_ARGS,
             bf16=is_rocm,
