@@ -189,7 +189,7 @@ async def lifespan(app: FastAPI):
                 model = PeftModel.from_pretrained(model, adapter_path)
                 print("✅ Adapter loaded successfully")
             else:
-                print(f"ℹ️  No fine-tuned adapter found at {adapter_path}. Using base model.")
+                print(f"ℹ️  No fine-tuned adapter found. Using base model.")
 
             print("✅ Model ready")
         except Exception as e:
@@ -287,15 +287,25 @@ cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))'''
             ))
 
     # Secrets in plaintext
-    if any(kw in combined for kw in ["password", "secret", "api key", "credential", "config.py"]):
-        if any(kw in combined for kw in ["plaintext", "hardcoded", "in code", "file", "string"]):
+    if any(kw in combined for kw in ["password", "secret", "api key", "credential", "config.py", ".env"]):
+        if any(kw in combined for kw in ["plaintext", "hardcoded", "in code", "file", "string", "stored"]):
             risks.append(SecurityRisk(
                 severity="high",
                 type="hardcoded_credentials",
-                description="Credentials should be stored in secure vaults (Vault, Secrets Manager) or environment variables, never in code or local config files.",
+                description="Credentials should be stored in secure vaults (Vault, Secrets Manager) or environment variables, never in code or local files.",
                 secure_alternative='''# Use environment variables
 import os
 api_key = os.environ.get('API_KEY')'''
+            ))
+            
+    # Insecure DB Communication
+    if "postgres" in combined or "database" in combined:
+        if "without ssl" in combined or "no ssl" in combined or "5432" in combined:
+            risks.append(SecurityRisk(
+                severity="medium",
+                type="insecure_db_comm",
+                description="Database communication should use SSL/TLS to prevent eavesdropping on the network.",
+                secure_alternative="Enable SSL in PostgreSQL and use sslmode=require in the connection string."
             ))
 
     return risks
@@ -370,32 +380,36 @@ async def validate_adr(request: ADRValidationRequest):
                 random.seed(hash_val % (2**32))
                 vector = [random.random() for _ in range(4096)]
 
-            # Modern Qdrant 1.7+ API with fallback
+            # Modern Qdrant 1.7+ API with fallback and filtering
             try:
-                # Use query_points for newer versions
                 query_response = vector_db.query_points(
                     collection_name="adrs",
                     query=vector,
-                    limit=5,
+                    limit=15, # Get more to filter generic files
                     with_payload=True
                 )
-                results = query_response.points
+                raw_results = query_response.points
             except (AttributeError, Exception):
-                # Fallback to legacy search method
-                results = vector_db.search(
+                raw_results = vector_db.search(
                     collection_name="adrs",
                     query_vector=vector,
-                    limit=5,
+                    limit=15,
                     with_payload=True
                 )
 
-            for r in results:
+            for r in raw_results:
+                title = r.payload.get("title", "")
+                if title.lower() in ["index", "readme", "introduction", "table of contents", "adrs"]:
+                    continue
+                    
                 related_adrs.append(RelatedADR(
-                    title=r.payload.get("title", ""),
+                    title=title,
                     similarity=float(r.score),
                     status=r.payload.get("status", ""),
                     category=r.payload.get("category", "")
                 ))
+                if len(related_adrs) >= 5: break
+                
         except Exception as e:
             print(f"⚠️  Qdrant search error: {e}")
 
@@ -450,10 +464,15 @@ Related ADRs:
     if model_critique:
         recommendations.insert(0, f"AI Analysis: {model_critique}")
 
-    # Determine status
-    if contradictions or any(r.severity in ["critical", "high"] for r in risks):
+    # Determine status based on risks AND AI Analysis
+    has_critical_ai = any(kw in model_critique.lower() for kw in ["critical flaw", "vulnerability", "insecure", "flaw"])
+    
+    if contradictions or any(r.severity in ["critical", "high"] for r in risks) or has_critical_ai:
         status = "needs_review"
         message = "Issues detected that require attention before approval."
+    elif risks:
+        status = "needs_minor_revision"
+        message = "Minor issues found. Consider addressing them."
     else:
         status = "approved"
         message = "ADR appears sound."
