@@ -4,14 +4,12 @@ import ADRValidatorPlugin from '../main';
 export interface ADRValidatorSettings {
     apiEndpoint: string;
     apiKey: string;
-    realtimeValidation: boolean;
     additionalContext: string;
 }
 
 export const DEFAULT_SETTINGS: ADRValidatorSettings = {
     apiEndpoint: 'http://localhost:8000',
     apiKey: '',
-    realtimeValidation: true,
     additionalContext: '',
 };
 
@@ -59,16 +57,6 @@ export class ADRValidatorSettingTab extends PluginSettingTab {
                 (text as TextComponent).inputEl.type = 'password';
                 (text as TextComponent).inputEl.style.width = '100%';
             });
-
-        new Setting(containerEl)
-            .setName('Real-time Validation')
-            .setDesc('Validate ADRs automatically while typing (2s delay)')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.realtimeValidation)
-                .onChange(async (value) => {
-                    this.plugin.settings.realtimeValidation = value;
-                    await this.plugin.saveSettings();
-                }));
 
         new Setting(containerEl)
             .setName('Additional Context')

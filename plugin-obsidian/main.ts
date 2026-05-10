@@ -6,7 +6,6 @@ import { ADRAPIClient, ADRValidationResponse } from './src/api';
 export default class ADRValidatorPlugin extends Plugin {
     settings: ADRValidatorSettings;
     apiClient: ADRAPIClient;
-    private debounceTimer: NodeJS.Timeout | null = null;
 
     async onload() {
         await this.loadSettings();
@@ -40,14 +39,6 @@ export default class ADRValidatorPlugin extends Plugin {
 
         this.addSettingTab(new ADRValidatorSettingTab(this.app, this));
 
-        if (this.settings.realtimeValidation) {
-            this.registerEvent(
-                this.app.workspace.on('editor-change', (editor) => {
-                    this.debouncedValidate(editor.getValue());
-                })
-            );
-        }
-
         console.log('ADR Security Validator loaded');
     }
 
@@ -73,15 +64,6 @@ export default class ADRValidatorPlugin extends Plugin {
             this.settings.apiKey
         );
     }
-
-    private debouncedValidate = (content: string) => {
-        if (this.debounceTimer) {
-            clearTimeout(this.debounceTimer);
-        }
-        this.debounceTimer = setTimeout(() => {
-            this.validateADR(content);
-        }, 2000);
-    };
 
     async validateCurrentADR() {
         const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
