@@ -102,14 +102,20 @@ export default class ADRValidatorPlugin extends Plugin {
         const titleMatch = content.match(/^#\s+(.+)$/m);
         const title = titleMatch ? titleMatch[1] : 'Untitled ADR';
 
-        new Notice('Validating ADR...', 2000);
-
+        // Show persistent loading notice
+        const loadingNotice = new Notice('🧠 AI Architect is analyzing your ADR...\nEstimated time: 5-8 seconds', 0);
+        
         try {
+            const startTime = Date.now();
+            
             const result = await this.apiClient.validateADR({
                 title,
                 content,
                 context: this.settings.additionalContext || undefined
             });
+
+            const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+            loadingNotice.hide(); // Remove loading notice
 
             new ValidatorModal(this.app, this, result).open();
 
@@ -118,16 +124,17 @@ export default class ADRValidatorPlugin extends Plugin {
 
             if (riskCount > 0 || contradictionCount > 0) {
                 new Notice(
-                    `⚠️ ${contradictionCount} contradictions, ${riskCount} security risks`,
-                    4000
+                    `✅ Analysis complete in ${duration}s\n⚠️ ${contradictionCount} contradictions, ${riskCount} security risks`,
+                    6000
                 );
-            } else if (result.status === 'approved') {
-                new Notice('✅ ADR approved', 3000);
+            } else {
+                new Notice(`✅ ADR analyzed in ${duration}s. No major issues found.`, 4000);
             }
 
         } catch (error) {
+            loadingNotice.hide();
             console.error('Validation error:', error);
-            new Notice('❌ Validation failed. Check API connection.', 5000);
+            new Notice('❌ Validation failed. Check API connection and AMD Cloud status.', 5000);
         }
     }
 
