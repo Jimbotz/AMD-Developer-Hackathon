@@ -18,6 +18,8 @@ if not hasattr(torch, "int1"):
     torch.int1 = torch.int8
 if not hasattr(torch, "int2"):
     torch.int2 = torch.int8
+if not hasattr(torch, "int3"):
+    torch.int3 = torch.int8
 os.environ["TRANSFORMERS_NO_TORCHAO"] = "1"
 
 try:
@@ -97,7 +99,7 @@ from datasets import load_dataset, Dataset
 MODEL_NAME = "Qwen/Qwen3-8B"
 MAX_SEQ_LENGTH = 2048
 OUTPUT_DIR = "./models/qwen-adr-lora"
-DATASET_PATH = "./fine-tuning/training-data.jsonl"
+DATASET_PATH = "training-data.jsonl"
 
 # ... (keep LoRA and Training configs)
 
